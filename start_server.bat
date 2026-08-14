@@ -2,7 +2,7 @@
 REM Xueqiu analyzer - local web server launcher (double-click to run)
 title XueqiuAnalyzer
 
-SET PYTHON=C:\Users\user\.workbuddy\binaries\python\versions\3.13.12\python.exe
+SET PYTHON=C:\Users\user\AppData\Local\Programs\Python\Python312\python.exe
 SET DIR=D:\SynologyDrive\CODING\xueqiu-analyzer
 
 cd /d "%DIR%"

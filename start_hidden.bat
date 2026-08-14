@@ -2,7 +2,7 @@
 REM Xueqiu analyzer - silent launcher (run at login, no window)
 REM Waits for D: (SynologyDrive) ready, then launches server via pythonw
 
-SET PYTHON=C:\Users\user\.workbuddy\binaries\python\versions\3.13.12\pythonw.exe
+SET PYTHON=C:\Users\user\AppData\Local\Programs\Python\Python312\pythonw.exe
 SET SRV=D:\SynologyDrive\CODING\xueqiu-analyzer\server.py
 
 SET /A tries=0

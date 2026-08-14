@@ -536,29 +536,44 @@ function importBrowserCookie(){
   const hint = document.getElementById('importHint');
   const sel = document.getElementById('browserSel');
   const browser = sel ? sel.value : 'chrome';
-  btn.disabled = true;
-  hint.style.display = 'block';
-  hint.textContent = '正在从 ' + browser + ' 读取已登录的雪球 Cookie…（若浏览器正运行，请先关闭后再试）';
-  fetch('/api/import_browser_cookie', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({browser})})
-    .then(r=>r.json())
+  if (btn) btn.disabled = true;
+  if (hint){
+    hint.style.display = 'block';
+    hint.className = 'hint';
+    hint.textContent = '正在从 ' + browser + ' 读取已登录的雪球 Cookie…（若浏览器正运行，请先关闭后再试）';
+  }
+  // 超时保护：避免“一直转、无任何提示”
+  const controller = ('AbortController' in window) ? new AbortController() : null;
+  const timer = setTimeout(() => { if (controller) controller.abort(); }, 60000);
+  const opts = {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({browser})};
+  if (controller) opts.signal = controller.signal;
+  fetch('/api/import_browser_cookie', opts)
+    .then(r => r.text().then(txt => {
+      let d; try { d = JSON.parse(txt); } catch(e){ throw new Error('服务返回异常内容：' + txt.slice(0,200)); }
+      if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
+      return d;
+    }))
     .then(d=>{
-      btn.disabled = false;
+      clearTimeout(timer);
+      if (btn) btn.disabled = false;
       if(!d.ok){
-        hint.style.display = 'block';
-        hint.textContent = '❌ ' + (d.error || '导入失败');
+        if (hint){ hint.style.display='block'; hint.className='hint err'; hint.textContent = '❌ ' + (d.error || '导入失败'); }
         showToast(d.error || '导入失败', 'err');
         return;
       }
-      hint.textContent = '✅ ' + (d.message || '导入成功');
-      setTimeout(()=>{ hint.style.display='none'; }, 5000);
+      if (hint){ hint.style.display='block'; hint.className='hint ok'; hint.textContent = '✅ ' + (d.message || '导入成功'); }
+      setTimeout(()=>{ if(hint) hint.style.display='none'; }, 6000);
       showToast('已从浏览器导入 Cookie', 'ok');
       return fetchJSON('/api/settings').then(s=>{ DATA.settings = s; renderSettings(); });
     })
     .catch(e=>{
-      btn.disabled = false;
-      hint.style.display = 'block';
-      hint.textContent = '❌ 请求失败：' + e.message;
-      showToast('失败: '+e.message, 'err');
+      clearTimeout(timer);
+      if (btn) btn.disabled = false;
+      const msg = (e && e.name === 'AbortError')
+        ? '请求超时（60秒无响应）。请确认：① 本地服务已启动（start_server.bat）；② Chrome/Edge 已完全关闭。'
+        : '无法连接本地服务，请确认 server.py 已运行（双击 start_server.bat）。';
+      if (hint){ hint.style.display='block'; hint.className='hint err'; hint.textContent = '❌ ' + msg; }
+      showToast(msg, 'err');
     });
 }
 
