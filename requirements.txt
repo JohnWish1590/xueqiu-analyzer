@@ -6,8 +6,8 @@ cryptography>=42.0
 # 行情（真实数据；未装时 market 模块会优雅降级，仅演示数据可用）
 akshare>=1.13
 
-# 登录窗抓取（内置浏览器登录拿 cookie；未装时走手动粘贴兜底）
-playwright>=1.40
+# 登录窗方案已弃用（改为「从浏览器导入 Cookie」，直接解密本机浏览器已登录态，无需 playwright）
+# playwright>=1.40
 
 # 可选：若想用 SDK 而非 requests 直连，可装 openai（当前代码用 requests，不必装）
 # openai>=1.0

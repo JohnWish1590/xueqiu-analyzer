@@ -216,10 +216,17 @@ def get_cookie_header(source: str = None) -> str:
     log.debug("cookie 来源: %s", s)
 
     try:
-        if s == "login_window":
-            hdr = _login_window_or_cache()
-        elif s == "manual":
+        if s in ("manual", "browser"):
+            # 浏览器导入 / 手动粘贴：直接读已写入 settings.cookie 的字符串，绝不弹窗
             hdr = config.load_settings().get("cookie", "")
+        elif s == "login_window":
+            # 优先复用已导入的 cookie（settings.cookie），避免再弹登录窗；
+            # 仅当确实没有有效 cookie 时才回退到弹窗（旧方案兜底）
+            cached = config.load_settings().get("cookie", "")
+            if cached and cookie_status(cached):
+                hdr = cached
+            else:
+                hdr = _login_window_or_cache()
         elif s == "v2_store":
             hdr = _read_v2_store()
         elif s == "visitor":

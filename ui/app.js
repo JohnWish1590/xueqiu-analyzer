@@ -524,37 +524,40 @@ function renderSettings(){
   const srcEl = document.getElementById('setCookieSource');
   if (srcEl) srcEl.textContent = srcMap[DATA.settings.cookie_source] || DATA.settings.cookie_source || '--';
 
-  // 绑定「登录雪球」与「手动粘贴保存」
-  const lb = document.getElementById('btnLoginXueqiu');
-  if (lb && !lb._bound){ lb._bound = true; lb.onclick = loginXueqiu; }
+  // 绑定「从浏览器导入」与「手动粘贴保存」
+  const ib = document.getElementById('btnImportCookie');
+  if (ib && !ib._bound){ ib._bound = true; ib.onclick = importBrowserCookie; }
   const sb = document.getElementById('btnSaveCookie');
   if (sb && !sb._bound){ sb._bound = true; sb.onclick = saveManualCookie; }
 }
 
-function loginXueqiu(){
-  const btn = document.getElementById('btnLoginXueqiu');
-  const hint = document.getElementById('loginHint');
+function importBrowserCookie(){
+  const btn = document.getElementById('btnImportCookie');
+  const hint = document.getElementById('importHint');
+  const sel = document.getElementById('browserSel');
+  const browser = sel ? sel.value : 'chrome';
   btn.disabled = true;
   hint.style.display = 'block';
-  hint.textContent = '正在打开浏览器，请在弹出的雪球登录页完成登录（扫码 / 账号密码）。登录成功后会自动返回，请保持本页打开。';
-  fetch('/api/login_xueqiu', {method:'POST'})
+  hint.textContent = '正在从 ' + browser + ' 读取已登录的雪球 Cookie…（若浏览器正运行，请先关闭后再试）';
+  fetch('/api/import_browser_cookie', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({browser})})
     .then(r=>r.json())
     .then(d=>{
       btn.disabled = false;
       if(!d.ok){
         hint.style.display = 'block';
-        hint.textContent = '❌ ' + (d.error || '启动登录窗失败');
-        showToast(d.error || '启动失败', 'err');
+        hint.textContent = '❌ ' + (d.error || '导入失败');
+        showToast(d.error || '导入失败', 'err');
         return;
       }
-      hint.textContent = '✅ ' + (d.message || '登录成功，Cookie 已保存');
-      setTimeout(()=>{ hint.style.display='none'; }, 4000);
+      hint.textContent = '✅ ' + (d.message || '导入成功');
+      setTimeout(()=>{ hint.style.display='none'; }, 5000);
+      showToast('已从浏览器导入 Cookie', 'ok');
       return fetchJSON('/api/settings').then(s=>{ DATA.settings = s; renderSettings(); });
     })
     .catch(e=>{
       btn.disabled = false;
       hint.style.display = 'block';
-      hint.textContent = '❌ 请求失败：' + e.message + '（若浏览器已弹出，请先完成登录再重试）';
+      hint.textContent = '❌ 请求失败：' + e.message;
       showToast('失败: '+e.message, 'err');
     });
 }

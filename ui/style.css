@@ -189,3 +189,6 @@ table.m td.l{text-align:left}
 .manual-wrap summary{cursor:pointer;font-size:13px;color:var(--ink2);font-weight:600;user-select:none}
 .manual-wrap .ta{width:100%;margin:10px 0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;
   font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;resize:vertical;background:#fff;color:var(--ink)}
+.import-row{display:flex;gap:8px;align-items:center}
+.import-row .sel{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);font-size:13px}
+.import-row .btn{flex:1}

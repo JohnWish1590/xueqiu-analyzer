@@ -66,8 +66,8 @@ def make_handler(ui_dir):
                 return self._post_worker_stop(raw)
             if path == "/api/save_backfill_days":
                 return self._post_save_backfill_days(raw)
-            if path == "/api/login_xueqiu":
-                return self._post_login_xueqiu(raw)
+            if path == "/api/import_browser_cookie":
+                return self._post_import_browser_cookie(raw)
             if path == "/api/save_cookie":
                 return self._post_save_cookie(raw)
             self.send_response(404)
@@ -232,40 +232,26 @@ def make_handler(ui_dir):
             except Exception as e:
                 self._json_err(500, str(e))
 
-        def _post_login_xueqiu(self, raw):
+        def _post_import_browser_cookie(self, raw):
             try:
-                # 1) Playwright 库是否安装
-                try:
-                    import importlib
-                    importlib.import_module("playwright")
-                except Exception:
-                    return self._json_err(400,
-                        "未安装 Playwright，无法弹出登录窗。请先执行：\n"
-                        "  pip install playwright\n  playwright install chromium")
-                # 2) Chromium 浏览器是否已下载（核心修复：缺失则立即告知，不再静默失败）
-                try:
-                    import os as _os
-                    from playwright.sync_api import sync_playwright
-                    with sync_playwright() as _p:
-                        _exe = _p.chromium.executable_path()
-                    if not _os.path.exists(_exe):
-                        return self._json_err(400,
-                            "Chromium 浏览器尚未下载，无法弹出登录窗。\n"
-                            "请在命令行执行一次（一次性）：\n"
-                            "  playwright install chromium\n"
-                            "执行完成后再回到本页点「登录雪球」。")
-                except Exception as _e:
-                    return self._json_err(400,
-                        "未能确认 Chromium 是否就绪：%s\n"
-                        "请先执行：playwright install chromium" % _e)
-                # 3) 同步弹出登录窗（在请求线程内执行，登录成功/失败都会真实回报前端）
-                import cookie_provider
-                try:
-                    cookie_provider.launch_login_window()
-                except Exception as _e:
-                    return self._json_err(500, "登录窗启动或登录失败：%s" % _e)
+                import config
+                import browser_cookie
+                body = json.loads(raw.decode("utf-8")) if raw else {}
+                browser = str(body.get("browser", "chrome")).strip().lower()
+                if browser not in ("chrome", "edge"):
+                    browser = "chrome"
+                cookie, err = browser_cookie.build_xueqiu_cookie(browser)
+                if err:
+                    return self._json_err(400, err)
+                if not cookie:
+                    return self._json_err(400, "未能提取到雪球 cookie（请确认已在 %s 登录雪球）" % browser)
+                s = config.load_settings()
+                s["cookie"] = cookie
+                s["cookie_source"] = "browser"
+                config.save_settings(s)
                 self._json({"ok": True,
-                            "message": "登录成功，Cookie 已保存。本页状态已刷新。"})
+                            "message": "已从 %s 导入雪球登录态（%d 个字段），本页状态已刷新。"
+                                       % (browser, cookie.count("="))})
             except Exception as e:
                 self._json_err(500, str(e))
 
