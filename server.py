@@ -13,6 +13,63 @@ PORT = 8765
 UI_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui")
 
 
+def _normalize_cookie(raw):
+    """把用户粘贴的任意 Cookie 文本规范成 'k=v; k2=v2' 头部字符串。
+
+    支持三种输入：
+    1) 纯 header 字符串：'xq_a_token=...; xq_r_token=...'
+    2) Chrome 扩展「Cookie 管家 / cookie-picker」复制的 JSON：
+       {"cookies":{"xueqiu":{"domain":"xueqiu.com","header":"xq_a_token=...; ..."}}}
+       -> 自动提取其中的雪球(xueqiu) header。
+    3) JSON 数组 [{"name":"xq_a_token","value":"..."}, ...] 或对象 {k:v}。
+    返回 (header_str, error_msg)；error_msg 为 None 表示成功。
+    """
+    text = (raw or "").strip()
+    if not text:
+        return "", "cookie 不能为空"
+    # 纯字符串（不以 { 或 [ 开头）直接当 header
+    if not (text.startswith("{") or text.startswith("[")):
+        return text, None
+    # 尝试 JSON
+    try:
+        obj = json.loads(text)
+    except Exception:
+        return text, None  # 不是合法 JSON，当作普通 header 字符串
+
+    header = None
+    if isinstance(obj, dict):
+        cookies = obj.get("cookies")
+        if isinstance(cookies, dict):
+            candidates = []
+            for v in cookies.values():
+                if isinstance(v, dict) and isinstance(v.get("header"), str) and v["header"].strip():
+                    domain = str(v.get("domain", "")).lower()
+                    candidates.append(("xueqiu" in domain, v["header"].strip()))
+            if candidates:
+                candidates.sort(key=lambda x: x[0], reverse=True)  # 优先雪球
+                header = candidates[0][1]
+        if not header and isinstance(obj.get("header"), str) and obj["header"].strip():
+            header = obj["header"].strip()
+        if not header and obj and all(isinstance(x, dict) for x in obj.values()):
+            header = "; ".join(f"{k}={v}" for k, v in obj.items())
+    elif isinstance(obj, list):
+        parts = []
+        for item in obj:
+            if isinstance(item, dict):
+                name = item.get("name") or item.get("k") or item.get("key")
+                val = item.get("value") or item.get("v") or item.get("val")
+                if name is not None and val is not None:
+                    parts.append(f"{name}={val}")
+        if parts:
+            header = "; ".join(parts)
+
+    if not header:
+        return "", ("无法从粘贴内容中识别 Cookie：请直接粘贴 'k=v; k2=v2' 字符串，"
+                    "或 Chrome 扩展 Cookie 管家复制的 JSON")
+    return header, None
+
+
+
 def make_handler(ui_dir):
     class Handler(SimpleHTTPRequestHandler):
         def __init__(self, *a, **kw):
@@ -235,12 +292,17 @@ def make_handler(ui_dir):
                 import config
                 body = json.loads(raw.decode("utf-8")) if raw else {}
                 cookie = str(body.get("cookie", "")).strip()
-                if not cookie:
-                    return self._json_err(400, "cookie 不能为空")
-                if "xq_a_token=" not in cookie and "xqat=" not in cookie:
-                    return self._json_err(400, "cookie 格式不正确，需包含 xq_a_token 或 xqat")
+                header, err = _normalize_cookie(cookie)
+                if err:
+                    return self._json_err(400, err)
+                if "xq_a_token=" not in header and "xqat=" not in header:
+                    return self._json_err(
+                        400,
+                        "未找到雪球登录态（需含 xq_a_token 或 xqat）。"
+                        "若使用 Chrome 扩展 Cookie 管家，请确认已勾选「雪球」并点过「测试读取」后再复制。",
+                    )
                 s = config.load_settings()
-                s["cookie"] = cookie
+                s["cookie"] = header
                 s["cookie_source"] = "manual"
                 config.save_settings(s)
                 self._json({"ok": True, "message": "Cookie 已保存（手动模式）"})

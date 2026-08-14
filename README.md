@@ -117,7 +117,7 @@ cd xueqiu-analyzer
 pip install -r requirements.txt
 ```
 
-> 本工具**完全自包含**：Cookie 由你在设置页**手动粘贴**获取，**不需要安装任何 Chrome 插件或「雪哨」等第三方工具**。
+> 本工具核心**无需雪哨等第三方工具**；推荐使用配套的 Chrome 扩展 **[Cookie 管家（cookie-picker）](https://github.com/JohnWish1590/cookie-picker)** 一键取 Cookie（详见下文「Cookie 鉴权」）。
 
 ### 运行
 
@@ -127,6 +127,8 @@ python server.py
 ```
 
 首次进入是「设置 / 演示模式」：可以直接用 `ui/data/` 里的占位数据预览界面；要分析真实大V，按下面「配置」步骤接好 Cookie 和跟踪对象即可。
+
+> **📦 怎么分发给别人用？** 本仓库**目前没有发布 GitHub Release**（仅有源码）。对方拿到的标准方式是：① `git clone` 或「Download ZIP」下载源码 → ② `pip install -r requirements.txt` → ③ `python server.py` → 浏览器打开 `http://localhost:8765`。若想给对方「双击即用」的 exe，用下面「一键打包」生成（产物在 `dist/`）。Cookie 一律配合下方「Cookie 管家」扩展获取，对方**不需要安装雪哨**。
 
 ### 一键打包（可选）
 
@@ -151,13 +153,24 @@ pyinstaller build.spec
 
 ### 2. Cookie 鉴权（必须）
 
-抓取需要登录态 Cookie。在「设置 → Cookie 鉴权」**手动粘贴**即可：
+抓取需要登录态 Cookie。**推荐配合 Chrome 扩展「Cookie 管家」（[cookie-picker](https://github.com/JohnWish1590/cookie-picker)）一键取 Cookie**；也支持纯手工从 DevTools 复制。
+
+#### 方式一（推荐）：用 Chrome 扩展 Cookie 管家 取 Cookie
+
+1. **安装扩展**：打开 `chrome://extensions/` → 右上角开「开发者模式」→ 「加载已解压的扩展程序」→ 选择 [cookie-picker](https://github.com/JohnWish1590/cookie-picker) 目录。工具栏出现橙色图标即成功。
+2. **登录雪球**：浏览器登录 [xueqiu.com](https://xueqiu.com)（确保已登录）。
+3. **取 Cookie → 复制**：点工具栏橙色图标打开 Cookie 管家 → 确认「雪球」已勾选 → 点「测试读取」（显示 `✓ N 条`）→ 点「复制」。
+4. **粘贴到这里**：回到本工具「设置 → ② Cookie 鉴权」文本框，**直接粘贴**刚才复制的内容（是一段 JSON，本工具会自动提取其中的雪球 Cookie），点「**保存 Cookie**」→ 页面立即显示 **✅ 保存成功**。
+
+> 复制的内容形如 `{"cookies":{"xueqiu":{"domain":"xueqiu.com","header":"xq_a_token=...; ..."}}}`；本工具会自动解析并只取雪球部分，无需你手动挑字段。若未勾选「雪球」就复制，会提示「未找到雪球登录态」。
+
+#### 方式二（兜底）：纯手工从 DevTools 复制
 
 1. 浏览器登录 [xueqiu.com](https://xueqiu.com)；
 2. 打开开发者工具（F12 → Network → 任意雪球请求 → 复制 `Cookie` 请求头）；
-3. 把整段 Cookie 字符串粘贴到设置页文本框，点「**保存 Cookie**」，页面会立即显示「✅ 保存成功」。
+3. 把整段 `k=v; k2=v2` 字符串粘贴到设置页文本框，点「**保存 Cookie**」，页面会立即显示「✅ 保存成功」。
 
-> Cookie 仅在本地使用，不会上传。雪球登录态失效时（定期过期）抓取会失败并提示，到设置页重新粘贴最新 Cookie 并点「保存 Cookie」即可。
+> Cookie 仅在本地使用，不会上传。雪球登录态失效时（定期过期）抓取会失败并提示，重新取一次并保存即可。
 
 ### 3. AI 模型（可选）
 
