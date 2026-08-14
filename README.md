@@ -117,7 +117,7 @@ cd xueqiu-analyzer
 pip install -r requirements.txt
 ```
 
-> 本工具核心**无需雪哨等第三方工具**；推荐使用配套的 Chrome 扩展 **[Cookie 管家（cookie-picker）](https://github.com/JohnWish1590/cookie-picker)** 一键取 Cookie（详见下文「Cookie 鉴权」）。
+> 本工具核心**无需雪哨等第三方工具**；**推荐但非必须**配合 Chrome 扩展 **[Cookie 管家（cookie-picker）](https://github.com/JohnWish1590/cookie-picker)** 一键取 Cookie（也支持手动粘贴，详见下文「Cookie 鉴权」）。
 
 ### 运行
 
