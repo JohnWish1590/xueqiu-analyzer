@@ -309,4 +309,8 @@ Cookie（必须）：装 Chrome 扩展 Cookie 管家 https://github.com/JohnWish
 
 [MIT](./LICENSE) —— 可自由使用、修改、分发，请保留版权与免责声明。
 
+---
+
+完整更新日志（过程、踩坑、数据来源）见 [CHANGELOG.md](./CHANGELOG.md)。
+
 Socials: @下一站澳门. DM for inquiries.
