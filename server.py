@@ -234,7 +234,7 @@ def make_handler(ui_dir):
 
         def _post_login_xueqiu(self, raw):
             try:
-                # 先同步检测 Playwright 是否可用，缺失则立即告知前端（避免盲起线程后无反馈）
+                # 1) Playwright 库是否安装
                 try:
                     import importlib
                     importlib.import_module("playwright")
@@ -242,19 +242,30 @@ def make_handler(ui_dir):
                     return self._json_err(400,
                         "未安装 Playwright，无法弹出登录窗。请先执行：\n"
                         "  pip install playwright\n  playwright install chromium")
-                import threading
+                # 2) Chromium 浏览器是否已下载（核心修复：缺失则立即告知，不再静默失败）
+                try:
+                    import os as _os
+                    from playwright.sync_api import sync_playwright
+                    with sync_playwright() as _p:
+                        _exe = _p.chromium.executable_path()
+                    if not _os.path.exists(_exe):
+                        return self._json_err(400,
+                            "Chromium 浏览器尚未下载，无法弹出登录窗。\n"
+                            "请在命令行执行一次（一次性）：\n"
+                            "  playwright install chromium\n"
+                            "执行完成后再回到本页点「登录雪球」。")
+                except Exception as _e:
+                    return self._json_err(400,
+                        "未能确认 Chromium 是否就绪：%s\n"
+                        "请先执行：playwright install chromium" % _e)
+                # 3) 同步弹出登录窗（在请求线程内执行，登录成功/失败都会真实回报前端）
                 import cookie_provider
-                def _run():
-                    try:
-                        cookie_provider.launch_login_window()
-                    except Exception as e:
-                        import logging
-                        logging.getLogger("cookie_provider").warning("登录窗失败: %s", e)
-                t = threading.Thread(target=_run, daemon=True)
-                t.start()
+                try:
+                    cookie_provider.launch_login_window()
+                except Exception as _e:
+                    return self._json_err(500, "登录窗启动或登录失败：%s" % _e)
                 self._json({"ok": True,
-                            "message": "已在弹出的浏览器中打开雪球登录页，请登录（扫码 / 账号密码）。"
-                                       "登录成功后将自动保存 Cookie，本页状态会自动刷新。"})
+                            "message": "登录成功，Cookie 已保存。本页状态已刷新。"})
             except Exception as e:
                 self._json_err(500, str(e))
 

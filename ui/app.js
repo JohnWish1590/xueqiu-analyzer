@@ -535,33 +535,28 @@ function loginXueqiu(){
   const btn = document.getElementById('btnLoginXueqiu');
   const hint = document.getElementById('loginHint');
   btn.disabled = true;
-  fetch('/api/login_xueqiu', {method:'POST'}).then(r=>r.json()).then(d=>{
-    if(!d.ok){
+  hint.style.display = 'block';
+  hint.textContent = '正在打开浏览器，请在弹出的雪球登录页完成登录（扫码 / 账号密码）。登录成功后会自动返回，请保持本页打开。';
+  fetch('/api/login_xueqiu', {method:'POST'})
+    .then(r=>r.json())
+    .then(d=>{
       btn.disabled = false;
-      showToast(d.error || '启动登录窗失败', 'err');
-      return;
-    }
-    hint.style.display = 'block';
-    hint.textContent = d.message + '（登录窗口会弹在运行本程序的电脑上）';
-    // 轮询 monitor，直到 cookie 有效或超时（180s）
-    const deadline = Date.now() + 180000;
-    const iv = setInterval(()=>{
-      fetchJSON('/api/monitor').then(m=>{
-        if(m.cookie_status === 'valid'){
-          clearInterval(iv);
-          hint.textContent = '✅ 登录成功，Cookie 已保存';
-          setTimeout(()=>{ hint.style.display='none'; }, 3000);
-          btn.disabled = false;
-          return fetchJSON('/api/settings').then(s=>{ DATA.settings = s; renderSettings(); });
-        }
-        if(Date.now() > deadline){
-          clearInterval(iv);
-          hint.textContent = '登录等待超时，请重试或使用下方「手动粘贴 Cookie」';
-          btn.disabled = false;
-        }
-      }).catch(()=>{});
-    }, 2000);
-  }).catch(e=>{ btn.disabled=false; showToast('启动失败: '+e.message, 'err'); });
+      if(!d.ok){
+        hint.style.display = 'block';
+        hint.textContent = '❌ ' + (d.error || '启动登录窗失败');
+        showToast(d.error || '启动失败', 'err');
+        return;
+      }
+      hint.textContent = '✅ ' + (d.message || '登录成功，Cookie 已保存');
+      setTimeout(()=>{ hint.style.display='none'; }, 4000);
+      return fetchJSON('/api/settings').then(s=>{ DATA.settings = s; renderSettings(); });
+    })
+    .catch(e=>{
+      btn.disabled = false;
+      hint.style.display = 'block';
+      hint.textContent = '❌ 请求失败：' + e.message + '（若浏览器已弹出，请先完成登录再重试）';
+      showToast('失败: '+e.message, 'err');
+    });
 }
 
 function saveManualCookie(){
