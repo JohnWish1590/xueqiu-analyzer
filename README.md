@@ -292,3 +292,5 @@ Cookie（必须）：装 Chrome 扩展 Cookie 管家 https://github.com/JohnWish
 ## 十二、License
 
 [MIT](./LICENSE) —— 可自由使用、修改、分发，请保留版权与免责声明。
+
+Socials: @下一站澳门. DM for inquiries.
