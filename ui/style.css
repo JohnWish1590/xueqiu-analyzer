@@ -34,9 +34,8 @@ label{display:block;font-size:12.5px;color:var(--ink2);margin-bottom:6px;font-we
 /* ---------- 顶部状态条 ---------- */
 header.top{height:56px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;
   padding:0 18px;gap:18px;position:sticky;top:0;z-index:20}
-.logo{font-weight:700;font-size:16px;letter-spacing:.3px;display:flex;align-items:center;gap:8px}
-.logo .dot{width:10px;height:10px;border-radius:3px;background:var(--brand)}
-.statusbar{display:flex;gap:14px;margin-left:auto;align-items:center;flex-wrap:wrap}
+.statusbar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;width:100%}
+#sbFetch{min-width:170px;max-width:260px;justify-content:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stat{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;padding:0 12px;border-left:1px solid var(--line)}
 .stat b{font-size:14px;font-weight:700}
 .stat span{font-size:11px;color:var(--ink2)}
@@ -45,13 +44,17 @@ header.top{height:56px;background:#fff;border-bottom:1px solid var(--line);displ
 .pill.wait{background:var(--warn-soft);color:var(--warn);border-color:#f0c36d} .pill.idle{background:#eef0f3;color:var(--ink2);border-color:var(--line)}
 .pill.primary{background:var(--brand);color:#fff;border-color:var(--brand);cursor:pointer}
 .pill.primary:hover{filter:brightness(1.08)}
+.pill.danger{background:#fff;color:#c0392b;border-color:#e6a3a0;cursor:pointer;font-weight:600}
+.pill.danger:hover{background:#fdecea;filter:none}
 .stat b.stopped{color:var(--ink2);font-weight:600}
 .live{width:8px;height:8px;border-radius:50%;background:var(--down);box-shadow:0 0 0 3px rgba(22,163,106,.18);animation:pulse 1.6s infinite}
 @keyframes pulse{0%{opacity:1}50%{opacity:.35}100%{opacity:1}}
 
 /* ---------- 布局 / 导航 ---------- */
 .layout{display:flex;min-height:calc(100vh - 56px)}
-nav.side{width:188px;background:#fff;border-right:1px solid var(--line);padding:14px 10px;position:sticky;top:56px;height:calc(100vh - 56px);overflow:auto}
+nav.side{width:188px;background:#fff;border-right:1px solid var(--line);padding:10px 10px 14px;position:sticky;top:56px;height:calc(100vh - 56px);overflow:auto;display:flex;flex-direction:column}
+.side-brand{font-weight:700;font-size:15px;letter-spacing:.3px;display:flex;align-items:center;gap:8px;padding:6px 8px 12px;border-bottom:1px solid var(--line);margin-bottom:6px;flex:none}
+.side-brand .dot{width:10px;height:10px;border-radius:3px;background:var(--brand)}
 nav.side .grp{font-size:11px;color:var(--ink2);text-transform:uppercase;letter-spacing:.6px;margin:14px 8px 6px}
 nav.side a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;color:var(--ink);cursor:pointer;font-size:13.5px;margin-bottom:2px}
 nav.side a:hover{background:var(--bg)}
@@ -126,6 +129,8 @@ table.m td.l{text-align:left}
 /* ---------- 设置页 ---------- */
 .userline{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px}
 .userline .grow{flex:1}
+#userList{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px;align-items:start}
+#userList .userline{margin-bottom:0}
 .check{width:18px;height:18px;border:1.5px solid var(--line);border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:#fff;color:#fff;font-size:12px;flex:none}
 .check.on{background:var(--brand);border-color:var(--brand)}
 .toggle{position:relative;width:42px;height:23px;background:#cfd4dc;border-radius:999px;cursor:pointer;flex:none;transition:.15s}
@@ -147,6 +152,29 @@ table.m td.l{text-align:left}
 /* ---------- 抓取状态 ---------- */
 .spin{display:inline-block;width:9px;height:9px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;margin-right:5px;vertical-align:-1px}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---------- 7日价格通道（区间极值验证） ---------- */
+.ch7{background:#fafbfc;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:10px 0}
+.ch7-head{display:flex;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.ch7-lab{font-size:12px;font-weight:700;color:var(--brand)}
+.ch7-track{position:relative;height:48px;background:#f0f2f6;border-radius:8px;margin:4px 0 8px}
+.ch7-band{position:absolute;top:9px;bottom:9px;background:rgba(43,95,217,.10);border-left:1px dashed var(--brand);border-right:1px dashed var(--brand)}
+.ch7-zero{position:absolute;top:0;bottom:0;border-left:1px dashed #9aa1ad}
+.ch7-dot{position:absolute;top:50%;width:11px;height:11px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 2px #fff}
+.ch7-dot.up{background:var(--up)} .ch7-dot.down{background:var(--down)}
+.ch7-close{position:absolute;top:6px;bottom:6px;width:2px;transform:translateX(-1px)}
+.ch7-close.up{background:var(--up)} .ch7-close.down{background:var(--down)}
+.ch7-close i{position:absolute;top:-5px;left:50%;transform:translateX(-50%);width:13px;height:13px;border-radius:50%;background:#fff;border:2px solid var(--up)}
+.ch7-close.down i{border-color:var(--down)}
+.ch7-leg{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--ink2);margin-bottom:7px}
+.ch7-item{display:inline-flex;align-items:center;gap:5px}
+.ch7-item b{font-weight:700}
+.sw{width:9px;height:9px;border-radius:50%;display:inline-block}
+.sw.peak{background:var(--up)} .sw.trough{background:var(--down)} .sw.close{width:3px;height:12px;background:var(--ink2);border-radius:2px}
+.ch7-tags{display:flex;gap:8px;flex-wrap:wrap}
+.vtag{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:999px}
+.vtag.ok{background:var(--up-soft);color:var(--up)} .vtag.bad{background:#eef0f3;color:var(--ink2)}
+.vtag.ok2{background:var(--down-soft);color:var(--down)} .vtag.bad2{background:#eef0f3;color:var(--ink2)}
 .pill.wait{color:#b7791f;background:#fff7e6;border-color:#f0c36d}
 .pill.bad{color:#c0392b;background:#fdecea;border-color:#e6a3a0}
 .banner{background:#eaf2ff;border:1px solid #b9d4ff;color:#1f4fb0;border-radius:9px;padding:9px 12px;font-size:13px;margin-bottom:12px}

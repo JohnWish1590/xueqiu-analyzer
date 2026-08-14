@@ -28,7 +28,7 @@ DEFAULT_PENDING_WINDOW = 3
 # 对照基准指数（akshare 代码）
 BENCHMARK_INDEX = {"code": "000300", "name": "沪深300"}
 # 回测窗口（交易日）
-HORIZONS = [3, 5, 10, 20]
+HORIZONS = [3, 5, 7, 10, 20]
 
 # ---------- 发言类型 ----------
 # original=原帖, longpost=长文, reply=回帖；默认只抓原帖+长文（回帖观点片面，不抓）
@@ -69,6 +69,7 @@ DEFAULT_SETTINGS = {
     "cookie": "",
     "cookie_source": DEFAULT_COOKIE_SOURCE,
     "provider": DEFAULT_PROVIDER,
+    "model": "",                 # 用户选中的具体模型 ID；空则使用 provider 默认模型
     "api_key": "",
     "fetch_types": DEFAULT_FETCH_TYPES,
     "backfill_days": DEFAULT_BACKFILL_DAYS,

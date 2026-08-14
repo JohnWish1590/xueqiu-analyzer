@@ -10,23 +10,25 @@
 
 <!-- ============ 顶部全局状态条 ============ -->
 <header class="top">
-  <div class="logo"><span class="dot"></span>雪球大V观点印证分析</div>
   <div class="statusbar">
+    <!-- 抓取状态放最前并固定宽度，避免人名长短变化导致后面 API/Cookie 跳动 -->
+    <span class="pill" id="sbFetch">未抓取</span>
     <span class="pill" id="sbApi"><span class="live"></span><span id="sbApiText">API 正常</span></span>
     <span class="pill" id="sbCookie">Cookie 有效</span>
-    <span class="pill" id="sbFetch">未抓取</span>
     <div class="stat"><b id="sbLast">--</b><span>上次抓取</span></div>
     <div class="stat"><b id="sbNext">--</b><span>下次轮询</span></div>
     <div class="stat"><b class="up" id="sbPending">待验证 0</b><span>当前窗口</span></div>
     <div class="stat"><b class="down" id="sbVerified">已验证 0</b><span>历史回测</span></div>
     <div class="stat"><b id="sbTotal">0</b><span>已抓条数</span></div>
-    <button class="pill primary" id="sbWorkerToggle" style="margin-left:auto;cursor:pointer" title="控制后台自动轮询">▶ 开启自动轮询</button>
+    <button class="pill danger" id="sbShutdown" style="margin-left:auto;cursor:pointer" title="关闭本服务：仅退出当前程序，不影响其他 Python 进程（剪思盒等）。关闭后双击 launch_app.bat 可重新启动。">⏻ 关闭服务</button>
+    <button class="pill primary" id="sbWorkerToggle" style="cursor:pointer" title="控制后台自动轮询">▶ 开启自动轮询</button>
   </div>
 </header>
 
 <div class="layout">
   <!-- ============ 左侧导航 ============ -->
   <nav class="side">
+    <div class="side-brand"><span class="dot"></span>雪球大V观点印证分析</div>
     <div class="grp">分析视图</div>
     <a data-view="timeline" class="active"><span class="ic">🗓️</span>时间线<span class="badge" id="navPending">0</span></a>
     <a data-view="person"><span class="ic">👤</span>人物分析</a>
@@ -73,8 +75,8 @@
       <p class="vsub">抓到大V发言后自动预测个股/板块走向，挂上该人历史命中胜率与擅长板块，给出「跟随/观望/反向」信号标签与预测校准曲线。</p>
       <div id="predictList"></div>
       <div class="card">
-        <h3>预测校准曲线（可靠性图）</h3>
-        <p class="mini">横轴 = 预测置信度分箱，纵轴 = 实际命中率；理想情况贴近对角线 y=x。随样本回写持续校准。</p>
+        <h3>预测校准曲线（可靠性图）<span id="calibUserTag" class="chip" style="margin-left:6px"></span></h3>
+        <p class="mini">横轴 = 预测置信度分箱，纵轴 = 实际命中率；理想情况贴近对角线 y=x。曲线随「当前选中人物」联动，随样本回写持续校准。</p>
         <div id="calibChart" class="chart"></div>
       </div>
     </section>
@@ -146,7 +148,7 @@
       <div class="row">
         <div class="card">
           <h3>② Cookie 鉴权</h3>
-          <div class="kv"><span>状态</span><span class="pill ok" id="setCookieStatus">有效</span></div>
+          <div class="kv"><span>状态</span><span class="pill bad" id="setCookieStatus">失效</span></div>
           <div class="kv"><span>来源</span><span id="setCookieSource">--</span></div>
           <div class="kv"><span>剩余有效期</span><span class="up" id="setCookieExpire">--</span></div>
           <div class="kv"><span>WAF 绕过</span><span class="pill ok">api.xueqiu.com 子域直连</span></div>
@@ -163,14 +165,23 @@
         <div class="card">
           <h3>③ AI 模型与密钥</h3>
           <div class="field">
-            <label>模型选择</label>
-            <select id="modelSelect"></select>
+            <label>模型选择（输入 Key 后点「探测可用模型」）</label>
+            <select id="modelSelect">
+              <option value="">请先探测可用模型</option>
+            </select>
           </div>
           <div class="field">
             <label>API Key</label>
-            <input type="password" id="apiKeyInput" placeholder="sk-****************">
+            <input type="password" id="apiKeyInput" placeholder="粘贴 sk-... 后点保存；留空表示保留已配置 Key">
           </div>
-          <p class="mini">无 Key 时自动降级为本地启发式分析（实体抽取+情绪判断，不生成结构化观点）。</p>
+          <div class="kv"><span>当前 Key</span><span id="apiKeyStatus" class="mono">未配置</span></div>
+          <div class="row" style="margin-top:8px;align-items:center;gap:12px">
+            <button class="btn primary" id="btnSaveModel">保存</button>
+            <button class="btn" id="btnDetectModel">探测可用模型</button>
+            <button class="btn" id="btnClearModel" style="color:#c0392b;border-color:#c0392b;margin-left:auto">清除 Key</button>
+            <span class="hint" id="modelHint" style="display:none"></span>
+          </div>
+          <p class="mini">无 Key 时自动降级为本地启发式分析（实体抽取+情绪判断，不生成结构化观点）。保存后，其他下载本工具的用户均使用各自的 Key（各自 settings.json，互不可见）。</p>
         </div>
       </div>
 
@@ -219,7 +230,7 @@
   </main>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-<script src="./app.js?v=8"></script>
+<script src="./echarts.min.js" onerror="(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';document.head.appendChild(s);})()"></script>
+<script src="./app.js?v=20"></script>
 </body>
 </html>

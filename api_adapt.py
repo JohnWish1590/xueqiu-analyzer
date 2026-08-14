@@ -152,13 +152,26 @@ def build_timeline_verified():
             stance_hit = "看多命中" if hit else "未命中"
         else:
             stance_hit = "看空命中" if hit else "未命中"
+        # 7 日验证锚点（主锚）：终点超额收益（剥离沪深300 Beta）+ 区间极值 + 过程验证
+        excess_7d = (e["ret_7d"] or 0) - (e["idx_ret_7d"] or 0)
+        verify7 = {
+            "ret_7d": _pct(e["ret_7d"]),            # 个股 T+7 收盘收益
+            "idx_ret_7d": _pct(e["idx_ret_7d"]),    # 沪深300 同期收益
+            "excess_7d": _pct(excess_7d),           # 超额收益（剥离大盘 Beta）
+            "hit_7d": bool(e["hit_7d"]),            # 终点超额方向是否命中观点
+            "peak_ret": _pct(e["peak_ret"]),        # 区间内最高价收益（相对起点收盘）
+            "trough_ret": _pct(e["trough_ret"]),    # 区间内最低价收益
+            "proc_hit": bool(e["proc_hit"]),        # 过程验证：区间内是否触达观点方向
+        }
         out.append({
             "post_id": p["pid"], "user_name": _uname(p["user_xid"]), "user_id": p["user_xid"],
             "created_at": p["created_at"], "text": p["text"], "post_type": p["post_type"],
             "subject": subj, "contrast": _contrast_of(p), "summary": p.get("summary"),
             "attrib": attrib,
-            "actual": {"t1": _pct(e["ret_1d"]), "t5": _pct(e["ret_5d"]), "t10": _pct(e["ret_10d"]), "t20": _pct(e["ret_20d"])},
+            "actual": {"t1": _pct(e["ret_1d"]), "t5": _pct(e["ret_5d"]), "t7": _pct(e["ret_7d"]),
+                       "t10": _pct(e["ret_10d"]), "t20": _pct(e["ret_20d"])},
             "hit": hit, "stance_hit": stance_hit,
+            "verify7": verify7,
             "hist_hit_rate": hr or 0, "hist_n": n,
         })
     return out
@@ -174,14 +187,17 @@ def _uname(xid):
 
 def build_persons():
     out = []
+    fid = _followed_ids()   # 只展示已启用跟踪的人
     for u in db.get_users():
         xid = u["xid"]
+        if str(xid) not in fid:
+            continue
         # 矩阵：看多/看空 × T+1/3/5/10/20，直接从 events 算
         events = [dict(e) for e in db.get_events(xid)]
         matrix = {}
         for stance in ("看多", "看空"):
             row = {"n": 0}
-            for k in (1, 3, 5, 10, 20):
+            for k in (1, 3, 5, 7, 10, 20):
                 sub = [e for e in events if e["stance"] == stance and e.get(f"hit_{k}d") is not None]
                 n = len(sub)
                 hr = sum(e[f"hit_{k}d"] for e in sub) / n if n else 0
@@ -219,6 +235,7 @@ def build_persons():
             "name": u["name"], "user_id": xid, "desc": u.get("desc") or "",
             "hit_rate": hr or 0, "n": n, "ic": _user_ic(xid),
             "matrix": matrix, "sectors": secs, "history": history,
+            "calibration": _user_calibration(xid),
         })
     return out
 
@@ -227,6 +244,33 @@ def _user_ic(xid):
     bt = db.get_backtest(xid)
     ics = [b["ic"] for b in bt if b["horizon"].endswith("5d")]
     return round(sum(ics)/len(ics), 3) if ics else 0.0
+
+
+def _user_calibration(xid):
+    """该用户「置信度 → 实际命中率」校准曲线数据（Brier/校准曲线口径）。
+
+    取已验证预测（verified=1 且 hit 已知），按置信度分桶（0.5~0.9 共 5 桶），
+    桶内实际命中率 = mean(hit)，横坐标用桶内平均置信度。
+    返回 [{conf, actual, n}]；无足够已验证预测时返回 []（前端显示「数据积累中」）。
+    """
+    preds = [p for p in db.get_predictions(xid)
+             if p.get("verified") == 1 and p.get("hit") is not None and p.get("confidence") is not None]
+    if not preds:
+        return []
+    bins = {}
+    for p in preds:
+        conf = p["confidence"]
+        b = round(min(0.9, max(0.5, conf)) * 10) / 10
+        bins.setdefault(b, []).append((conf, p["hit"]))
+    pts = []
+    for b in sorted(bins):
+        items = bins[b]
+        n = len(items)
+        actual = sum(h for _, h in items) / n
+        conf_center = sum(c for c, _ in items) / n
+        pts.append({"conf": round(conf_center, 3), "actual": round(actual, 3), "n": n})
+    return pts
+
 
 
 def build_predictions():
@@ -241,12 +285,13 @@ def build_predictions():
         calib = []
         for b in db.get_backtest(pr["user_xid"]):
             calib.append({"conf": round(b["hit_rate"], 2), "actual": round(b["hit_rate"], 2)})
+        sectors = json.loads(pr["sectors"]) if pr["sectors"] else []
         out.append({
-            "post_id": pr["pid"], "user": _uname(pr["user_xid"]),
+            "post_id": pr["pid"], "user": _uname(pr["user_xid"]), "user_xid": pr["user_xid"],
             "subject": subj["name"] if subj else "", "pred_stance": pr["pred_stance"],
             "confidence": round(pr["confidence"], 2),
-            "sector": (json.loads(pr["sectors"])[0] if pr["sectors"] else ""),
-            "involved_sectors": json.loads(pr["sectors"]) if pr["sectors"] else [],
+            "sector": (sectors[0] if sectors else ""),
+            "involved_sectors": sectors,
             "hist_hit_rate": round((pr["hist_hit_rate"] or 0) * 100, 1),
             "hist_sector_hit": round((pr["hist_sector_hit"] or 0) * 100, 1),
             "signal": pr["signal"], "calibration": calib,
@@ -272,14 +317,26 @@ def build_settings():
             "fetched_at": fl.get("fetched_at", ""),
             "last_new": fl.get("new_count", 0),
         })
+    api_key = s.get("api_key", "")
+    model_providers = [
+        {"value": k, "label": v["label"], "model": v["model"]}
+        for k, v in MODEL_PROVIDERS.items()
+    ]
     return {
         "followed_users": followed,
-        "model": {"provider": s.get("provider"), "api_key": s.get("api_key", "")[:6] + "****" if s.get("api_key") else ""},
+        "model": {
+            "provider": s.get("provider"),
+            "model": s.get("model", ""),
+            "api_key": (api_key[:6] + "****") if api_key else "",
+            "api_key_set": bool(api_key),
+        },
+        "model_providers": model_providers,
         "post_types": {"original": "original" in s.get("fetch_types", []),
                        "long": "longpost" in s.get("fetch_types", []),
                        "reply": "reply" in s.get("fetch_types", [])},
         "backfill_days": s.get("backfill_days", 30),
         "skill_enabled": bool(s.get("skills")),
+        "cookie_source": s.get("cookie_source"),
         "worker_running": fmod.worker_running(),
         "db_path": str(__import__("config").DB_PATH),
         "posts_total": db.count_posts(),

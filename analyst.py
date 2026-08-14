@@ -331,6 +331,8 @@ def _llm_analyze(text, user_name="", provider=None, api_key=None, model=None):
             return None
         base = prov["base"]
         if model is None:
+            model = settings.get("model", "")
+        if not model:
             model = prov["model"]
 
         payload = {

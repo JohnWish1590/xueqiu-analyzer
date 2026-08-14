@@ -5,6 +5,8 @@
 """
 import json
 import os
+import socket
+import threading
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from functools import partial
 import api_adapt
@@ -125,6 +127,14 @@ def make_handler(ui_dir):
                 return self._post_save_backfill_days(raw)
             if path == "/api/save_cookie":
                 return self._post_save_cookie(raw)
+            if path == "/api/save_model":
+                return self._post_save_model(raw)
+            if path == "/api/detect_models":
+                return self._post_detect_models(raw)
+            if path == "/api/clear_model":
+                return self._post_clear_model(raw)
+            if path == "/api/shutdown":
+                return self._post_shutdown(raw)
             self.send_response(404)
             self.end_headers()
             self.wfile.write(b"not found")
@@ -309,13 +319,129 @@ def make_handler(ui_dir):
             except Exception as e:
                 self._json_err(500, str(e))
 
+        def _post_save_model(self, raw):
+            try:
+                import config
+                body = json.loads(raw.decode("utf-8")) if raw else {}
+                provider = body.get("provider")
+                model_id = body.get("model", "")
+                api_key = body.get("api_key", "")
+                if provider not in config.MODEL_PROVIDERS:
+                    return self._json_err(400, "未知模型/厂家：" + str(provider))
+                s = config.load_settings()
+                s["provider"] = provider
+                # 允许保存空 model（表示使用厂家默认模型）；显式值则保存为具体模型 ID
+                if isinstance(model_id, str):
+                    s["model"] = model_id.strip()
+                # 非空 = 用户填入了新 Key；空 = 保留已配置 Key（避免把掩码占位当真 Key 写回）
+                if api_key:
+                    s["api_key"] = api_key
+                config.save_settings(s)
+                cur = s.get("api_key", "")
+                self._json({
+                    "ok": True,
+                    "provider": provider,
+                    "model": s.get("model", ""),
+                    "api_key_set": bool(cur),
+                    "api_key_masked": (cur[:6] + "****") if cur else "",
+                })
+            except Exception as e:
+                self._json_err(500, str(e))
+
+        def _post_detect_models(self, raw):
+            """根据 Key 探测各厂家 /models 接口，返回该 Key 真实可用的模型列表。
+            网络受限或 Key 无效时返回空列表（前端提示用户检查 Key/网络）。"""
+            try:
+                import config
+                import requests
+                body = json.loads(raw.decode("utf-8")) if raw else {}
+                api_key = str(body.get("api_key", "")).strip()
+                if not api_key:
+                    return self._json_err(400, "缺少 api_key")
+                models = []
+                detail = {}
+                for pid, prov in config.MODEL_PROVIDERS.items():
+                    base = prov["base"].rstrip("/")
+                    label = prov["label"]
+                    ok_count = 0
+                    err = ""
+                    try:
+                        resp = requests.get(
+                            f"{base}/models",
+                            headers={"Authorization": f"Bearer {api_key}",
+                                     "Content-Type": "application/json"},
+                            timeout=10,
+                        )
+                        if resp.status_code == 200:
+                            data = resp.json().get("data", [])
+                            for m in data:
+                                mid = m.get("id") or m.get("name") or m.get("model")
+                                if not mid:
+                                    continue
+                                models.append({
+                                    "provider": pid,
+                                    "provider_label": label,
+                                    "model": str(mid),
+                                    "label": f"{label} · {mid}",
+                                })
+                                ok_count += 1
+                        elif resp.status_code in (401, 403):
+                            err = "鉴权失败"
+                        else:
+                            err = f"HTTP {resp.status_code}"
+                    except Exception as e:
+                        err = str(e)[:80]
+                    detail[pid] = {"ok_count": ok_count, "err": err}
+                self._json({"ok": True, "models": models, "detail": detail})
+            except Exception as e:
+                self._json_err(500, str(e))
+
+        def _post_clear_model(self, raw):
+            """清除已保存的 API Key 和选中模型（provider 保持不变），下降级到本地启发式分析。"""
+            try:
+                import config
+                s = config.load_settings()
+                s["api_key"] = ""
+                s["model"] = ""
+                config.save_settings(s)
+                self._json({"ok": True, "provider": s.get("provider"), "model": "", "api_key_set": False})
+            except Exception as e:
+                self._json_err(500, str(e))
+
+        def _post_shutdown(self, raw):
+            """优雅关闭本服务进程：仅退出当前 server.py 进程（不影响其他 Python 程序），
+            端口随即释放，避免多实例残留。延迟执行以确保响应先发回前端。"""
+            try:
+                self._json({"ok": True, "message": "服务正在关闭…"})
+            except Exception:
+                pass
+
+            def _kill():
+                try:
+                    self.server.shutdown()
+                except Exception:
+                    pass
+                # 仅退出本进程，不影响剪思盒/雪哨等其他 pythonw 进程
+                os._exit(0)
+
+            threading.Timer(0.4, _kill).start()
+
     return Handler
+
+
+class DualStackServer(ThreadingHTTPServer):
+    # 同时监听 IPv4 与 IPv6，使 http://localhost（解析到 ::1）与 http://127.0.0.1 都能访问
+    address_family = socket.AF_INET6
+
+    def server_bind(self):
+        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        super().server_bind()
 
 
 def main():
     handler = make_handler(UI_DIR)
-    httpd = ThreadingHTTPServer(("127.0.0.1", PORT), handler)
-    print(f"xueqiu-analyzer 已启动： http://localhost:{PORT}")
+    httpd = DualStackServer(("::", PORT), handler)
+    print(f"xueqiu-analyzer 已启动： http://localhost:{PORT}  (同时监听 127.0.0.1)")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:

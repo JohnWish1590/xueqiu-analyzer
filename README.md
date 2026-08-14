@@ -2,7 +2,7 @@
 
 > 把雪球大V的「观点」变成可验证的「事实」：自动抓取发言 → 结构化识别多空观点与标的 → 用真实行情做 **β 剥离归因** → 历史 **命中率 / IC 回测** → 抓到新发言即时给出 **跟随 / 观望 / 反向** 信号。
 
-本地优先、数据自持、纯个人研究用途。后端 Python（本地 Web 服务 + SQLite），前端是零构建的单页应用。所有行情数据均来自真实市场（[akshare](https://akshare.akfamily.xyz/)），绝不编造数字。
+本地优先、数据自持、纯个人研究用途。后端 Python（本地 Web 服务 + SQLite），前端是零构建的单页应用。所有行情数据均来自真实市场——**主价格源为雅虎财经（Yahoo Finance）**，一口井覆盖 A股（.SS/.SZ）/ 港股（.HK）/ 美股（字母 ticker）/ 指数（沪深300 `000300.SS`、创业板指 `399006.SZ`、上证指数 `000001.SS`）；A股概念板块（稀土 / 半导体等）雅虎不提供，仍由 akshare 兜底。绝不编造数字。
 
 ---
 
@@ -56,7 +56,7 @@
     │      │                              │
 ┌───▼───┐ ┌▼────────────┐         ┌──────▼──────┐
 │xueqiu │ │analyst.py   │         │ market.py   │
-│client │ │观点结构化    │         │ akshare行情 │
+│client │ │观点结构化    │         │ 雅虎行情    │
 └───────┘ └─────────────┘         └─────────────┘
         │
 ┌───────▼────────┐   ┌──────────────┐
@@ -65,7 +65,7 @@
 └────────────────┘   └──────────────┘
 ```
 
-- **后端**：纯标准库 + `requests` + `akshare`，本地进程内运行，数据全在本地 SQLite，不上传任何云端。
+- **后端**：纯标准库 + `requests`，本地进程内运行，数据全在本地 SQLite，不上传任何云端。行情主源为**雅虎财经（Yahoo Finance chart API，零依赖直连）**，A股概念板块由 `akshare` 兜底。
 - **前端**：单页应用，原生 JS + [ECharts](https://echarts.apache.org/)（CDN），无构建步骤、无框架。
 - **鉴权**：雪球 Cookie 通过**手动粘贴**获取（从浏览器登录态复制 Cookie 字符串粘贴到设置页），失败时层层优雅降级。
 - **模型**：可接 DeepSeek / 通义千问 / 智谱 GLM（OpenAI 兼容）。**不配置 Key 也能跑**——自动回退到纯规则分析。
@@ -84,7 +84,9 @@ xueqiu-analyzer/
 ├── xueqiu_client.py       # 雪球抓取客户端（WAF 绕过、用户解析、时间线分页）
 ├── analyst.py             # 发言结构化分析（LLM + 纯规则兜底，单主体识别）
 ├── engine.py              # 分析引擎：事件重建 + β剥离 + 命中率/IC回测 + 预测
-├── market.py              # 行情获取层（akshare，真实数据）
+├── market.py              # 行情获取层（akshare，仅 A股概念板块兜底）
+├── symbol_mapper.py       # 标的代码归一化（A/港/美/指数 → 雅虎 ticker）
+├── ingest_yahoo.py        # 价格回填：从雅虎财经拉日线 OHLC 灌 market_daily（主价格源）
 ├── cookie_provider.py     # Cookie 统一入口（手动/v2/游客兜底）
 ├── sample_data.py         # 示例/演示数据生成
 ├── build.spec             # （可选）想自行打包成 exe 时用的 PyInstaller 配置
@@ -128,6 +130,20 @@ python server.py
 
 首次进入是「设置 / 演示模式」：可以直接用 `ui/data/` 里的占位数据预览界面；要分析真实大V，按下面「配置」步骤接好 Cookie 和跟踪对象即可。
 
+### 价格数据回填（分析前必做）
+
+「已验证 / 回测」依赖 `market_daily` 里的真实日线。本工具**主价格源是雅虎财经（Yahoo Finance）**，一条命令即可把数据库里所有被引用的标的（A股 / 港股 / 美股 / 沪深300 等指数）拉全：
+
+```bash
+python ingest_yahoo.py            # 自动扫描 DB 全部标的 + 美股回填，灌库后自动重算事件
+python ingest_yahoo.py --dry     # 只打印将要拉取的标的，不实际请求
+```
+
+- 雅虎 chart API 需带浏览器 `User-Agent`（脚本已内置），批量拉取会自动串行 + 429 退避 + `query1`/`query2` 双 host 轮换。
+- A股概念板块（稀土 / 半导体等）雅虎不提供，`sector_alpha` 暂为空；如需可由 `market.py`（akshare）补充。
+- 个别雅虎覆盖不全的标的（如创业板指 `399006` 历史数据缺失）会自动跳过、保留既有数据，不影响分析。
+- 曾用腾讯自选股 MCP（`ingest_westock.py`）或东方财富（`price_feed.py`）回填的，可继续作为离线兜底，互不冲突。
+
 > **🤖 给 Agent / 朋友安装**：本仓库**只有源码、没有发布 exe**。把仓库地址 **https://github.com/JohnWish1590/xueqiu-analyzer** 发给任意会写代码的 AI Agent（或懂 Python 的朋友），它就能照下面三步自己装好并跑起来：① `git clone` 或「Download ZIP」下载 → ② `pip install -r requirements.txt` → ③ `python server.py` → 浏览器打开 `http://localhost:8765`。Cookie 一律配合下方「Cookie 管家」扩展获取（也支持手动粘贴）。
 
 ### 可直接转发给 Agent 的安装话术
@@ -150,7 +166,7 @@ Cookie（必须）：装 Chrome 扩展 Cookie 管家 https://github.com/JohnWish
   → 浏览器登录 xueqiu.com → 点橙色图标 → 勾选「雪球」→ 测试读取 → 复制
   → 回工具「设置 → Cookie 鉴权」直接粘贴（JSON 自动提取雪球部分）→ 保存 Cookie → 显示 ✅ 保存成功
 
-环境：Python 3.10+，Windows/macOS/Linux；首次抓取需联网（akshare 真实行情）；
+环境：Python 3.10+，Windows/macOS/Linux；首次抓取需联网（雅虎财经行情 + 雪球 API）；
 不填 API Key 也能跑（纯规则兜底）；数据全在本机 SQLite，不上传云端。
 ```
 
@@ -225,7 +241,7 @@ Cookie（必须）：装 Chrome 扩展 Cookie 管家 https://github.com/JohnWish
 |----|------|
 | `users` | 被跟踪大V（xid、昵称、简介） |
 | `posts` | 发言（含单主体 `subject_stocks`、对比 `contrast_stocks`、板块、立场、时间维度、摘要、所用模型） |
-| `market_daily` | 指数 / 板块 / 个股日线（akshare 真实数据，含沪深300 基准） |
+| `market_daily` | 指数 / 板块 / 个股日线（**雅虎财经**真实数据，A/港/美/沪深300 全覆盖；A股概念板块留空待 akshare） |
 | `events` | 发言→标的 的三级递进事件 + β 剥离 + 各窗口命中 |
 | `predictions` | 抓到发言后自动生成的预测（核心层） |
 | `backtest` | 分窗口历史命中率与 IC |

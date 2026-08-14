@@ -86,6 +86,8 @@ def init_db() -> None:
             close REAL,
             pct REAL,
             kind TEXT,                 -- index/sector/stock
+            high REAL,                -- 当日最高价（区间极值验证用）
+            low REAL,                 -- 当日最低价
             PRIMARY KEY (date, code)
         );
 
@@ -97,11 +99,14 @@ def init_db() -> None:
             stock_code TEXT,
             sector_code TEXT,
             idx_code TEXT,
-            ret_1d REAL, ret_3d REAL, ret_5d REAL, ret_10d REAL, ret_20d REAL,
-            idx_ret_1d REAL, idx_ret_3d REAL, idx_ret_5d REAL, idx_ret_10d REAL, idx_ret_20d REAL,
+            ret_1d REAL, ret_3d REAL, ret_5d REAL, ret_7d REAL, ret_10d REAL, ret_20d REAL,
+            idx_ret_1d REAL, idx_ret_3d REAL, idx_ret_5d REAL, idx_ret_7d REAL, idx_ret_10d REAL, idx_ret_20d REAL,
             sector_alpha_3d REAL, stock_alpha_3d REAL,
             verified INTEGER,
-            hit_1d INTEGER, hit_3d INTEGER, hit_5d INTEGER, hit_10d INTEGER, hit_20d INTEGER,
+            hit_1d INTEGER, hit_3d INTEGER, hit_5d INTEGER, hit_7d INTEGER, hit_10d INTEGER, hit_20d INTEGER,
+            peak_ret REAL,         -- 区间内最高价相对起点收益（峰值）
+            trough_ret REAL,       -- 区间内最低价相对起点收益（谷值）
+            proc_hit INTEGER,      -- 过程验证：区间内峰值/谷值方向是否触达观点方向
             computed_at TEXT
         );
 
@@ -143,6 +148,21 @@ def init_db() -> None:
         );
         """
     )
+    # 兼容已存在库：补齐新列（初次建表已含，此处幂等）
+    for stmt in (
+        "ALTER TABLE market_daily ADD COLUMN high REAL",
+        "ALTER TABLE market_daily ADD COLUMN low REAL",
+        "ALTER TABLE events ADD COLUMN ret_7d REAL",
+        "ALTER TABLE events ADD COLUMN idx_ret_7d REAL",
+        "ALTER TABLE events ADD COLUMN hit_7d INTEGER",
+        "ALTER TABLE events ADD COLUMN peak_ret REAL",
+        "ALTER TABLE events ADD COLUMN trough_ret REAL",
+        "ALTER TABLE events ADD COLUMN proc_hit INTEGER",
+    ):
+        try:
+            conn.execute(stmt)
+        except Exception:
+            pass
     conn.commit()
     conn.close()
 
@@ -177,11 +197,13 @@ def upsert_post(**kw):
 
 
 def upsert_market(rows):
-    """rows: list of dict(date,code,name,close,pct,kind)"""
+    """rows: list of dict(date,code,name,close,pct,kind,high,low)"""
     conn = get_conn()
     conn.executemany(
-        "INSERT INTO market_daily(date,code,name,close,pct,kind) VALUES(:date,:code,:name,:close,:pct,:kind) "
-        "ON CONFLICT(date,code) DO UPDATE SET close=excluded.close,pct=excluded.pct,name=excluded.name",
+        "INSERT INTO market_daily(date,code,name,close,pct,kind,high,low) "
+        "VALUES(:date,:code,:name,:close,:pct,:kind,:high,:low) "
+        "ON CONFLICT(date,code) DO UPDATE SET close=excluded.close,pct=excluded.pct,name=excluded.name,"
+        "high=excluded.high,low=excluded.low",
         rows,
     )
     conn.commit()
@@ -192,17 +214,21 @@ def upsert_event(**kw):
     conn = get_conn()
     conn.execute(
         "INSERT INTO events(pid,user_xid,created_at,stance,stock_code,sector_code,idx_code,"
-        "ret_1d,ret_3d,ret_5d,ret_10d,ret_20d,idx_ret_1d,idx_ret_3d,idx_ret_5d,idx_ret_10d,idx_ret_20d,"
-        "sector_alpha_3d,stock_alpha_3d,verified,hit_1d,hit_3d,hit_5d,hit_10d,hit_20d,computed_at) "
+        "ret_1d,ret_3d,ret_5d,ret_7d,ret_10d,ret_20d,idx_ret_1d,idx_ret_3d,idx_ret_5d,idx_ret_7d,idx_ret_10d,idx_ret_20d,"
+        "sector_alpha_3d,stock_alpha_3d,verified,hit_1d,hit_3d,hit_5d,hit_7d,hit_10d,hit_20d,"
+        "peak_ret,trough_ret,proc_hit,computed_at) "
         "VALUES(:pid,:user_xid,:created_at,:stance,:stock_code,:sector_code,:idx_code,"
-        ":ret_1d,:ret_3d,:ret_5d,:ret_10d,:ret_20d,:idx_ret_1d,:idx_ret_3d,:idx_ret_5d,:idx_ret_10d,:idx_ret_20d,"
-        ":sector_alpha_3d,:stock_alpha_3d,:verified,:hit_1d,:hit_3d,:hit_5d,:hit_10d,:hit_20d,:computed_at) "
+        ":ret_1d,:ret_3d,:ret_5d,:ret_7d,:ret_10d,:ret_20d,:idx_ret_1d,:idx_ret_3d,:idx_ret_5d,:idx_ret_7d,:idx_ret_10d,:idx_ret_20d,"
+        ":sector_alpha_3d,:stock_alpha_3d,:verified,:hit_1d,:hit_3d,:hit_5d,:hit_7d,:hit_10d,:hit_20d,"
+        ":peak_ret,:trough_ret,:proc_hit,:computed_at) "
         "ON CONFLICT(pid) DO UPDATE SET ret_1d=excluded.ret_1d,ret_3d=excluded.ret_3d,ret_5d=excluded.ret_5d,"
-        "ret_10d=excluded.ret_10d,ret_20d=excluded.ret_20d,idx_ret_1d=excluded.idx_ret_1d,idx_ret_3d=excluded.idx_ret_3d,"
-        "idx_ret_5d=excluded.idx_ret_5d,idx_ret_10d=excluded.idx_ret_10d,idx_ret_20d=excluded.idx_ret_20d,"
+        "ret_7d=excluded.ret_7d,ret_10d=excluded.ret_10d,ret_20d=excluded.ret_20d,"
+        "idx_ret_1d=excluded.idx_ret_1d,idx_ret_3d=excluded.idx_ret_3d,idx_ret_5d=excluded.idx_ret_5d,"
+        "idx_ret_7d=excluded.idx_ret_7d,idx_ret_10d=excluded.idx_ret_10d,idx_ret_20d=excluded.idx_ret_20d,"
         "sector_alpha_3d=excluded.sector_alpha_3d,stock_alpha_3d=excluded.stock_alpha_3d,verified=excluded.verified,"
-        "hit_1d=excluded.hit_1d,hit_3d=excluded.hit_3d,hit_5d=excluded.hit_5d,hit_10d=excluded.hit_10d,"
-        "hit_20d=excluded.hit_20d,computed_at=excluded.computed_at",
+        "hit_1d=excluded.hit_1d,hit_3d=excluded.hit_3d,hit_5d=excluded.hit_5d,hit_7d=excluded.hit_7d,"
+        "hit_10d=excluded.hit_10d,hit_20d=excluded.hit_20d,peak_ret=excluded.peak_ret,trough_ret=excluded.trough_ret,"
+        "proc_hit=excluded.proc_hit,computed_at=excluded.computed_at",
         kw,
     )
     conn.commit()
@@ -327,11 +353,30 @@ def get_backtest_sector(user_xid):
 
 
 def get_market_series(code):
-    """返回按日期升序的 (date, close) 列表"""
+    """返回按日期升序的 (date, close, high, low) 列表；high/low 可能为空（旧数据）。"""
     conn = get_conn()
-    rows = conn.execute("SELECT date,close FROM market_daily WHERE code=? ORDER BY date", (code,)).fetchall()
+    rows = conn.execute(
+        "SELECT date,close,high,low FROM market_daily WHERE code=? ORDER BY date", (code,)
+    ).fetchall()
     conn.close()
-    return [(r["date"], r["close"]) for r in rows]
+    return [(r["date"], r["close"], r["high"], r["low"]) for r in rows]
+
+
+def get_market_window(code, start_date, end_date):
+    """返回 [start_date, end_date] 闭区间内的最高价 max(high)、最低价 min(low)。
+    用于区间极值（峰值/谷值）验证。区间无数据返回 (None, None)。"""
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT high, low FROM market_daily WHERE code=? AND date>=? AND date<=? "
+        "AND high IS NOT NULL AND low IS NOT NULL ORDER BY date",
+        (code, start_date, end_date),
+    ).fetchall()
+    conn.close()
+    if not rows:
+        return None, None
+    hi = max(r["high"] for r in rows)
+    lo = min(r["low"] for r in rows)
+    return hi, lo
 
 
 def get_market_name(code):

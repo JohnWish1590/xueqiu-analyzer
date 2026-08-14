@@ -42,8 +42,8 @@ function avatarStyle(name){
 function avatarChar(name){ return (name || '?').trim().charAt(0); }
 
 // 涨跌语义：A股 涨=红、跌=绿
-function dirClass(v){ return v >= 0 ? 'up' : 'down'; }
-function fmtPct(v){ return (v >= 0 ? '+' : '') + v + '%'; }
+function dirClass(v){ return (v != null && !isNaN(v) && v >= 0) ? 'up' : 'down'; }
+function fmtPct(v){ return (v != null && !isNaN(v)) ? ((v >= 0 ? '+' : '') + v + '%') : '--'; }
 
 // ---------- 工具：时间窗口 ----------
 function parseDate(s){ return new Date(String(s).replace(' ', 'T')); }
@@ -93,12 +93,20 @@ async function bootstrap(){
       '<br>请通过静态服务器访问（如 <code>python -m http.server</code>），勿用 file:// 直接打开。</div>';
     return;
   }
-  renderStatusbar();
-  renderTimeline();
-  renderPersons();
-  renderPredictions();
-  renderSettings();
-  renderMonitor();
+  // 先无条件绑定保存按钮：不依赖任何渲染函数，避免视图渲染抛错导致按钮「点了没反应」
+  const sb0 = document.getElementById('btnSaveCookie');
+  if (sb0 && !sb0._bound){ sb0._bound = true; sb0.onclick = saveManualCookie; }
+  const safeRender = (name, fn) => {
+    try { fn(); }
+    catch (e) { console.error('渲染[' + name + ']失败：', e); }
+  };
+  // 各视图独立渲染：某个视图抛错（如图表库缺失）不应连坐导致保存按钮等未绑定
+  safeRender('状态条', renderStatusbar);
+  safeRender('时间线', renderTimeline);
+  safeRender('人物', renderPersons);
+  safeRender('预测', renderPredictions);
+  safeRender('设置', renderSettings);   // 保存按钮绑定在此，必须执行
+  safeRender('监控', renderMonitor);
   startMonitorPoll();
 }
 
@@ -200,24 +208,27 @@ function paintTimeline(){
 function groupByDay(list, cardFn){
   const groups = {};
   list.forEach(p => {
-    const day = p.created_at.split(' ')[0];
+    const day = (p.created_at || '').split(' ')[0] || '未知日期';
     (groups[day] = groups[day] || []).push(p);
   });
   return Object.keys(groups).sort().reverse().map(day => {
     const meta = 'age ' + daysAgo(day + ' 00:00') + ' 天';
-    const cards = groups[day].map(cardFn).join('');
+    const cards = groups[day].map(p => {
+      try { return cardFn(p); }
+      catch (e) { console.error('卡片渲染失败，已跳过：', e, p); return '<div class="pcard" style="color:var(--up)">渲染异常：数据字段缺失</div>'; }
+    }).join('');
     return '<div class="day-head"><span class="d">' + day + '</span><span class="meta">' + meta + '</span></div>' + cards;
   }).join('');
 }
 
 function subjectBlock(p){
-  const s = p.subject;
+  const s = p.subject || {};
   const stanceCls = s.stance === '看多' ? 'up' : s.stance === '看空' ? 'down' : '';
   let html = '<div class="subject-block"><span class="lab">主体识别</span>' +
-    '<span class="chip subject ' + stanceCls + '">' + esc(s.name) + ' ' + (s.code || '') + ' · ' + s.stance + ' · ' + s.horizon + '</span>';
+    '<span class="chip subject ' + stanceCls + '">' + esc(s.name || '--') + ' ' + (s.code || '') + ' · ' + (s.stance || '--') + ' · ' + (s.horizon || '--') + '</span>';
   if (p.contrast && p.contrast.length) {
     html += p.contrast.map(c =>
-      '<span class="chip contrast" title="' + esc(c.note || '仅展示不进回测') + '">' + esc(c.name) + ' 对比</span>'
+      '<span class="chip contrast" title="' + esc(c.note || '仅展示不进回测') + '">' + esc(c.name || '--') + ' 对比</span>'
     ).join(' ');
   }
   return html + '</div>';
@@ -251,25 +262,63 @@ function pendingCard(p){
 }
 
 function verifiedCard(p){
-  const a = p.actual;
-  const hitCls = p.hit ? (p.stance_hit.indexOf('看多') >= 0 ? 'long' : 'short') : 'mid';
+  const a = p.actual || {};
+  const att = p.attrib || {};
+  const stanceHit = p.stance_hit || '--';
+  const hitCls = p.hit ? (stanceHit.indexOf('看多') >= 0 ? 'long' : stanceHit.indexOf('看空') >= 0 ? 'short' : 'mid') : 'mid';
   return '<div class="pcard">' +
     '<div class="top"><div class="avatar" style="background:' + avatarStyle(p.user_name) + '">' + avatarChar(p.user_name) + '</div>' +
       '<div class="nm">' + esc(p.user_name) + '</div>' +
-      '<span class="chip subject">' + esc(p.subject.stance) + ' · ' + esc(p.subject.name) + '</span>' +
+      '<span class="chip subject">' + esc((p.subject && p.subject.stance) || '--') + ' · ' + esc((p.subject && p.subject.name) || '--') + '</span>' +
       '<span class="tm">' + esc(p.created_at) + '</span></div>' +
-    '<div class="text">' + esc(p.text) + '</div>' +
+    '<div class="text">' + esc(p.text || '') + '</div>' +
     subjectBlock(p) +
     '<div class="attrib">' +
-      '<div class="attr"><div class="k">大盘β</div><div class="v ' + dirClass(p.attrib.index_beta) + '">' + fmtPct(p.attrib.index_beta) + '</div></div>' +
-      '<div class="attr"><div class="k">板块α</div><div class="v ' + dirClass(p.attrib.sector_alpha) + '">' + fmtPct(p.attrib.sector_alpha) + '</div></div>' +
+      '<div class="attr"><div class="k">大盘β</div><div class="v ' + dirClass(att.index_beta) + '">' + fmtPct(att.index_beta) + '</div></div>' +
+      '<div class="attr"><div class="k">板块α</div><div class="v ' + dirClass(att.sector_alpha) + '">' + fmtPct(att.sector_alpha) + '</div></div>' +
       '<div class="attr"><div class="k">T+5 实际</div><div class="v ' + dirClass(a.t5) + '">' + fmtPct(a.t5) + '</div></div>' +
-      '<div class="attr"><div class="k">个股超额α</div><div class="v ' + dirClass(p.attrib.stock_alpha) + '">' + fmtPct(p.attrib.stock_alpha) + '</div></div>' +
+      '<div class="attr"><div class="k">个股超额α</div><div class="v ' + dirClass(att.stock_alpha) + '">' + fmtPct(att.stock_alpha) + '</div></div>' +
     '</div>' +
-    '<div class="verify"><span class="seg ' + hitCls + '">' + esc(p.stance_hit) + '</span>' +
-      '<span class="muted">T+1 ' + fmtPct(a.t1) + ' / T+5 ' + fmtPct(a.t5) + ' / T+10 ' + fmtPct(a.t10) + ' / T+20 ' + fmtPct(a.t20) + '</span>' +
+    (p.verify7 ? priceChannel7d(p.verify7) : '') +
+    '<div class="verify"><span class="seg ' + hitCls + '">' + esc(stanceHit) + '</span>' +
+      '<span class="muted">T+1 ' + fmtPct(a.t1) + ' / T+5 ' + fmtPct(a.t5) + ' / T+7 ' + fmtPct(a.t7) + ' / T+10 ' + fmtPct(a.t10) + ' / T+20 ' + fmtPct(a.t20) + '</span>' +
       (p.hit ? '' : ' <span class="muted">（未命中）</span>') + '</div>' +
     '</div>';
+}
+
+// 7日价格通道：区间极值验证（最低→最高带 + 起点基准线 + T+7 收盘标记）+ 三数字 + 双验证徽标
+function priceChannel7d(v){
+  const peak = v.peak_ret, trough = v.trough_ret, close = v.ret_7d, excess = v.excess_7d;
+  if (peak == null || trough == null || close == null) return '';
+  const lo = Math.min(trough, 0);
+  const hi = Math.max(peak, 0);
+  const span = (hi - lo) || 1;
+  const pct = x => ((x - lo) / span) * 100;
+  const posPeak = pct(peak), posTrough = pct(trough), posClose = pct(close), posZero = pct(0);
+  const cls = x => (x != null && !isNaN(x) && x >= 0) ? 'up' : 'down';
+  const endTag = v.hit_7d
+    ? '<span class="vtag ok">✓ 终点超额命中</span>'
+    : '<span class="vtag bad">✗ 终点未命中</span>';
+  const procTag = v.proc_hit
+    ? '<span class="vtag ok2">✓ 过程触达观点</span>'
+    : '<span class="vtag bad2">✗ 过程未达</span>';
+  return '<div class="ch7">' +
+    '<div class="ch7-head"><span class="ch7-lab">7日价格通道</span>' +
+      '<span class="muted mini">终点超额 ' + fmtPct(excess) + '（剥离沪深300 Beta）</span></div>' +
+    '<div class="ch7-track">' +
+      '<div class="ch7-band" style="left:' + Math.min(posTrough, posPeak) + '%;right:' + (100 - Math.max(posTrough, posPeak)) + '%"></div>' +
+      '<div class="ch7-zero" style="left:' + posZero + '%"></div>' +
+      '<div class="ch7-dot ' + cls(peak) + '" style="left:' + posPeak + '%" title="区间最高 ' + fmtPct(peak) + '"></div>' +
+      '<div class="ch7-dot ' + cls(trough) + '" style="left:' + posTrough + '%" title="区间最低 ' + fmtPct(trough) + '"></div>' +
+      '<div class="ch7-close ' + cls(close) + '" style="left:' + posClose + '%" title="T+7 收盘 ' + fmtPct(close) + '"><i></i></div>' +
+    '</div>' +
+    '<div class="ch7-leg">' +
+      '<span class="ch7-item"><i class="sw trough"></i>区间最低 <b class="' + cls(trough) + '">' + fmtPct(trough) + '</b></span>' +
+      '<span class="ch7-item"><i class="sw close"></i>收盘 <b class="' + cls(close) + '">' + fmtPct(close) + '</b></span>' +
+      '<span class="ch7-item"><i class="sw peak"></i>区间最高 <b class="' + cls(peak) + '">' + fmtPct(peak) + '</b></span>' +
+    '</div>' +
+    '<div class="ch7-tags">' + endTag + procTag + '</div>' +
+  '</div>';
 }
 
 function postTypeLabel(t){ return ({ original: '原帖', long: '长文', reply: '回帖' })[t] || t; }
@@ -337,6 +386,7 @@ function paintPerson(uid){
     const col = v >= 60 ? 'var(--down)' : v >= 50 ? 'var(--warn)' : 'var(--up)';
     return '<span class="heat" style="background:' + bg + ';color:' + col + '">' + v + '%</span>';
   };
+  const calibN = (p.calibration || []).reduce((a, c) => a + (c.n || 0), 0);
   const html =
     '<div class="card"><h3>' + esc(p.name) + ' · 命中率矩阵 <span class="chip">样本 N=' + p.n + '</span> <span class="chip">IC ' + (p.ic >= 0 ? '+' : '') + p.ic + '</span></h3>' +
       '<table class="m"><tr><th>观点</th><th>T+1 日</th><th>T+5 日</th><th>T+10 日</th><th>T+20 日</th><th>N</th></tr>' +
@@ -346,6 +396,9 @@ function paintPerson(uid){
       '<p class="mini">方向命中率 = 发言后 N 日该板块/个股实际涨跌方向与观点一致的比例。样本偏小时置信区间宽。</p>' +
     '</div>' +
     '<div class="card"><h3>分板块历史胜率 & IC（ECharts）</h3><div id="sectorChart" class="chart"></div></div>' +
+    '<div class="card"><h3>' + esc(p.name) + ' · 置信度校准曲线 <span class="chip">已验证样本 N=' + calibN + '</span></h3>' +
+      '<p class="mini">横轴=该人预测置信度分箱，纵轴=该置信区间内的实际命中率；贴近对角线 y=x 表示「说几成把握就真有几成准」。样本不足时显示「数据积累中」。</p>' +
+      '<div id="personCalib" class="chart"></div></div>' +
     '<div class="card"><h3>历史发言下钻</h3>' +
       p.history.map(h => {
         const seg = h.stance === '看多' ? 'long' : h.stance === '看空' ? 'short' : 'mid';
@@ -359,11 +412,12 @@ function paintPerson(uid){
     '</div>';
   document.getElementById('personMain').innerHTML = html;
   drawSectorChart(p);
+  drawPersonCalibration(p);
 }
 
 function drawSectorChart(p){
   const el = document.getElementById('sectorChart');
-  if (!el) return;
+  if (!el || typeof echarts === 'undefined') return;
   const chart = STATE.charts.sector || (STATE.charts.sector = echarts.init(el));
   const names = p.sectors.map(s => s.sector);
   const hits = p.sectors.map(s => s.hit);
@@ -415,42 +469,82 @@ function renderPredictions(){
   drawCalibration();
 }
 
-function drawCalibration(){
-  const el = document.getElementById('calibChart');
-  if (!el) return;
-  const chart = STATE.charts.calib || (STATE.charts.calib = echarts.init(el));
-  // 聚合所有预测校准点：{conf 置信度(0-1), actual 实际命中率(0-1)}
+function _calibPointsFor(uid){
+  // 返回校准点数组 [[conf%, actual%, n], ...]；若有选中用户则只取该人，否则聚合全部人
+  if (uid){
+    const p = DATA.persons.find(x => x.user_id === uid);
+    if (p && p.calibration) return p.calibration.map(c => [Math.round(c.conf*100), Math.round(c.actual*100), c.n]);
+    return [];
+  }
   const pts = [];
-  DATA.predictions.forEach(pr => (pr.calibration || []).forEach(c =>
-    pts.push([Math.round(c.conf * 100), Math.round(c.actual * 100)])));
+  DATA.persons.forEach(p => (p.calibration || []).forEach(c =>
+    pts.push([Math.round(c.conf*100), Math.round(c.actual*100), c.n])));
+  return pts;
+}
+
+function _renderCalibChart(chart, el, pts){
+  if (!pts.length){
+    if (chart){ try { chart.dispose(); } catch(e){} }
+    el.innerHTML = '<div class="empty" style="padding:24px;text-align:center;color:var(--muted)">该用户暂无足够已验证预测，校准曲线数据积累中…（抓取并验证更多发言后自动出现）</div>';
+    return null;
+  }
+  el.innerHTML = '';
+  if (!chart) chart = echarts.init(el);
   chart.setOption({
-    tooltip: { trigger: 'item', formatter: p => '预测 ' + p.value[0] + '% → 实际 ' + p.value[1] + '%' },
+    tooltip: { trigger: 'item', formatter: p => '预测 ' + p.value[0] + '% → 实际 ' + p.value[1] + '%（N=' + (p.value[2]||0) + '）' },
     grid: { left: 50, right: 30, top: 30, bottom: 50 },
-    xAxis: { type: 'value', name: '预测置信度%', min: 40, max: 90, nameLocation: 'middle', nameGap: 28 },
-    yAxis: { type: 'value', name: '实际命中率%', min: 40, max: 90 },
+    xAxis: { type: 'value', name: '预测置信度%', min: 40, max: 100, nameLocation: 'middle', nameGap: 28 },
+    yAxis: { type: 'value', name: '实际命中率%', min: 0, max: 100 },
     series: [
-      // 参考对角线 y=x
-      { type: 'line', data: [[40,40],[90,90]], lineStyle: { type: 'dashed', color: '#999' }, symbol: 'none', name: '理想 y=x' },
-      { type: 'scatter', data: pts, symbolSize: 12, itemStyle: { color: '#2b5fd9' }, name: '校准点' },
+      { type: 'line', data: [[40,40],[100,100]], lineStyle: { type: 'dashed', color: '#999' }, symbol: 'none', name: '理想 y=x' },
+      { type: 'scatter', data: pts, symbolSize: 14, itemStyle: { color: '#2b5fd9' }, name: '校准点' },
     ],
   });
   chart.resize();
+  return chart;
+}
+
+function drawCalibration(){
+  const el = document.getElementById('calibChart');
+  if (!el || typeof echarts === 'undefined') return;
+  const uid = STATE.currentPerson;
+  const tag = document.getElementById('calibUserTag');
+  if (tag){
+    const p = uid ? DATA.persons.find(x => x.user_id === uid) : null;
+    tag.textContent = p ? ('当前：' + p.name) : '全部（未选人）';
+  }
+  const pts = _calibPointsFor(uid);
+  STATE.charts.calib = _renderCalibChart(STATE.charts.calib, el, pts);
+}
+
+function drawPersonCalibration(p){
+  const el = document.getElementById('personCalib');
+  if (!el || typeof echarts === 'undefined') return;
+  const pts = (p.calibration || []).map(c => [Math.round(c.conf*100), Math.round(c.actual*100), c.n]);
+  STATE.charts.personCalib = _renderCalibChart(STATE.charts.personCalib, el, pts);
 }
 
 /* ===================== 4. 设置 ===================== */
 function renderSettings(){
   const s = DATA.settings;
-  // 模型选择
+  // 模型选择：下拉由「探测可用模型」动态填充；若已有保存配置，先显示当前配置
   const modelSel = document.getElementById('modelSelect');
-  const PROVIDERS = [
-    { v: 'deepseek-flash', t: 'DeepSeek V4 Flash（默认·高速低价）' },
-    { v: 'deepseek-pro', t: 'DeepSeek V4 Pro（高精度）' },
-    { v: 'qwen', t: '通义千问 · qwen-plus' },
-    { v: 'glm', t: '智谱 GLM · glm-4-flash' },
-  ];
-  modelSel.innerHTML = PROVIDERS.map(p => '<option value="' + p.v + '">' + p.t + '</option>').join('');
-  modelSel.value = s.model.provider;
-  document.getElementById('apiKeyInput').value = s.model.api_key;
+  const savedProv = s.model.provider || '';
+  const savedModel = s.model.model || '';
+  if (savedProv && savedModel){
+    let label = savedProv;
+    if (s.model_providers && s.model_providers.length){
+      const found = s.model_providers.find(p => p.value === savedProv);
+      if (found) label = found.label;
+    }
+    modelSel.innerHTML = '<option value="' + esc(savedProv + '|' + savedModel) + '">' + esc(label + ' · ' + savedModel) + '</option>';
+  } else {
+    modelSel.innerHTML = '<option value="">请先探测可用模型</option>';
+  }
+  // 关键修复：不再把掩码 Key 回填进可编辑输入框（否则原样保存会污染真 Key）
+  document.getElementById('apiKeyInput').value = '';
+  const ks = document.getElementById('apiKeyStatus');
+  if (ks) ks.textContent = s.model.api_key_set ? (s.model.api_key + '（已配置）') : '未配置';
 
   // 发言类型开关
   bindToggle('pt_original', s.post_types.original);
@@ -527,6 +621,93 @@ function renderSettings(){
   // 绑定「保存 Cookie」（手动粘贴）
   const sb = document.getElementById('btnSaveCookie');
   if (sb && !sb._bound){ sb._bound = true; sb.onclick = saveManualCookie; }
+
+  // 绑定「AI 模型与密钥」保存 / 探测 / 清除
+  const sm = document.getElementById('btnSaveModel');
+  if (sm && !sm._bound){ sm._bound = true; sm.onclick = saveModel; }
+  const dm = document.getElementById('btnDetectModel');
+  if (dm && !dm._bound){ dm._bound = true; dm.onclick = detectModels; }
+  const cm = document.getElementById('btnClearModel');
+  if (cm && !cm._bound){ cm._bound = true; cm.onclick = clearModel; }
+}
+
+function saveModel(){
+  const raw = document.getElementById('modelSelect').value;
+  const key = document.getElementById('apiKeyInput').value.trim();
+  const hint = document.getElementById('modelHint');
+  if (!raw){ hint.style.display='inline'; hint.className='hint err'; hint.textContent='请先探测并选择模型'; return; }
+  const pipe = raw.indexOf('|');
+  const provider = pipe > -1 ? raw.slice(0, pipe) : raw;
+  const model = pipe > -1 ? raw.slice(pipe + 1) : '';
+  hint.style.display = 'none';
+  fetch('/api/save_model', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({provider: provider, model: model, api_key: key}),
+  }).then(r => r.json()).then(d => {
+    if (!d.ok){ hint.style.display='inline'; hint.className='hint err'; hint.textContent = '保存失败：' + (d.error || ''); return; }
+    hint.style.display='inline'; hint.className='hint ok';
+    hint.textContent = '已保存：' + provider + (d.model ? ' · ' + d.model : '') + (d.api_key_set ? '（Key 已更新）' : '（保留原 Key）');
+    const ks = document.getElementById('apiKeyStatus');
+    if (ks) ks.textContent = d.api_key_set ? (d.api_key_masked + '（已配置）') : '未配置';
+    document.getElementById('apiKeyInput').value = '';
+    // 同步内存态，避免再次渲染时回退
+    if (DATA.settings && DATA.settings.model){
+      DATA.settings.model.provider = provider;
+      DATA.settings.model.model = d.model || '';
+      DATA.settings.model.api_key_set = d.api_key_set;
+      if (d.api_key_set) DATA.settings.model.api_key = d.api_key_masked;
+    }
+  }).catch(e=>{ hint.style.display='inline'; hint.className='hint err'; hint.textContent='保存失败：' + e.message; });
+}
+
+function detectModels(){
+  const key = document.getElementById('apiKeyInput').value.trim();
+  const hint = document.getElementById('modelHint');
+  if (!key){ hint.style.display='inline'; hint.className='hint err'; hint.textContent='请先粘贴 Key 再探测'; return; }
+  hint.style.display = 'inline'; hint.className = 'hint'; hint.textContent = '探测中…';
+  fetch('/api/detect_models', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({api_key: key}),
+  }).then(r => r.json()).then(d => {
+    if (!d.ok){ hint.className = 'hint err'; hint.textContent = '探测失败：' + (d.error || ''); return; }
+    const models = d.models || [];
+    if (models.length === 0){
+      hint.className = 'hint err';
+      hint.textContent = '未探测到可用模型（可能 Key 无效或网络受限），请检查 Key 后重试';
+      document.getElementById('modelSelect').innerHTML = '<option value="">未探测到模型</option>';
+      return;
+    }
+    const sel = document.getElementById('modelSelect');
+    sel.innerHTML = models.map(m => '<option value="' + esc(m.provider + '|' + m.model) + '">' + esc(m.label) + '</option>').join('');
+    sel.value = models[0].provider + '|' + models[0].model;
+    hint.className = 'hint ok';
+    hint.textContent = '探测到 ' + models.length + ' 个可用模型，已自动选第一个';
+  }).catch(e=>{ hint.style.display='inline'; hint.className='hint err'; hint.textContent='探测失败：' + e.message; });
+}
+
+function clearModel(){
+  if (!confirm('确定要清除已保存的 API Key 吗？清除后将降级为本地启发式分析。')) return;
+  const hint = document.getElementById('modelHint');
+  fetch('/api/clear_model', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({}),
+  }).then(r => r.json()).then(d => {
+    if (!d.ok){ hint.style.display='inline'; hint.className='hint err'; hint.textContent='清除失败：' + (d.error || ''); return; }
+    hint.style.display='inline'; hint.className='hint ok';
+    hint.textContent = 'Key 已清除，provider 保持为 ' + d.provider;
+    document.getElementById('modelSelect').innerHTML = '<option value="">请先探测可用模型</option>';
+    const ks = document.getElementById('apiKeyStatus');
+    if (ks) ks.textContent = '未配置';
+    document.getElementById('apiKeyInput').value = '';
+    if (DATA.settings && DATA.settings.model){
+      DATA.settings.model.api_key_set = false;
+      DATA.settings.model.api_key = '';
+      DATA.settings.model.model = '';
+    }
+  }).catch(e=>{ hint.style.display='inline'; hint.className='hint err'; hint.textContent='清除失败：' + e.message; });
 }
 
 function saveManualCookie(){
@@ -545,9 +726,18 @@ function saveManualCookie(){
       return d;
     }))
     .then(d=>{
-      if (hint){ hint.style.display='block'; hint.className='hint ok'; hint.textContent='✅ 保存成功'; }
-      showToast('Cookie 保存成功', 'ok');
-      return fetchJSON('/api/settings').then(s=>{ DATA.settings=s; renderSettings(); });
+      // 关键修复：HTTP 200 不代表 cookie 真的落盘生效，必须回查 monitor 确认 cookie_status
+      return fetchJSON('/api/monitor').then(m=>{
+        DATA.monitor = m || DATA.monitor;
+        if (m && m.cookie_status === 'valid'){
+          if (hint){ hint.style.display='block'; hint.className='hint ok'; hint.textContent='✅ 保存成功，Cookie 已生效'; }
+          showToast('Cookie 保存成功并已生效', 'ok');
+        } else {
+          if (hint){ hint.style.display='block'; hint.className='hint err'; hint.textContent='⚠️ 服务返回成功但未真正生效，请硬刷新(Ctrl+F5)后重试'; }
+          showToast('保存未生效，请重试', 'err');
+        }
+        return fetchJSON('/api/settings').then(s=>{ DATA.settings=s; renderSettings(); renderStatusbar(); });
+      });
     })
     .catch(e=>{
       if (hint){ hint.style.display='block'; hint.className='hint err'; hint.textContent='❌ 保存失败：' + e.message; }
@@ -757,6 +947,26 @@ document.getElementById('sbWorkerToggle').onclick = function(){
   if (m.worker_running) stopWorker(); else startWorker();
 };
 
+document.getElementById('sbShutdown').onclick = shutdownServer;
+function shutdownServer(){
+  if (!confirm('确定关闭雪球分析服务吗？\n\n关闭后网页将不可用，需双击 launch_app.bat 重新启动。\n\n（仅退出本程序，不影响剪思盒等其他 Python 进程）')) return;
+  // 先显示遮罩，避免等待可能失败的网络请求
+  showShutdownScreen();
+  fetch('/api/shutdown', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'})
+    .catch(()=>{})
+    .finally(()=>{ /* server 即将退出，遮罩已显示 */ });
+}
+function showShutdownScreen(){
+  if (document.getElementById('shutdownScreen')) return;
+  const div = document.createElement('div');
+  div.id = 'shutdownScreen';
+  div.style.cssText = 'position:fixed;inset:0;background:#f4f6fa;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;font-family:sans-serif;color:#1f2329;text-align:center;padding:24px';
+  div.innerHTML = '<div style="font-size:44px;margin-bottom:12px">⏻</div>'
+    + '<div style="font-size:20px;font-weight:700;margin-bottom:8px">服务已关闭</div>'
+    + '<div style="font-size:14px;color:#646a73;max-width:440px;line-height:1.8">本程序已退出，端口 8765 已释放。<br>如需重新使用，请双击 <b>launch_app.bat</b> 重新启动（不会与已关闭的实例冲突）。</div>';
+  document.body.appendChild(div);
+}
+
 // 时间范围选择（1天/3天/30天/自定义），影响“立即抓取”的 days 参数
 bindRangeWrap('rangeWrap', 'rangeCustom', 'rangeCustomInput', null, null);
 function bindRangeWrap(wrapId, customBtnId, customInputId, initialDays, onChange){
@@ -822,6 +1032,10 @@ function getWrapDays(wrapId, customBtnId, customInputId){
   const d = parseInt(active.dataset.d, 10);
   return (d > 0) ? d : null;
 }
+
+// ---------- 抓取完成/错误提示去重（monitor 对象每轮 poll 会被替换，不能把状态存在上面） ----------
+let _lastFetchStage = null;
+let _lastFetchCount = null;
 
 // ---------- 自动轮询 worker 控制 ----------
 function refreshWorker(){
@@ -892,6 +1106,10 @@ function startFetch(){
 }
 
 function showToast(msg, type){
+  // 安全：若已存在同内容 toast，先移除，避免重叠造成「一直不消失」的错觉
+  document.querySelectorAll('.toast').forEach(t => {
+    if (t.textContent === msg) t.remove();
+  });
   const id = 'toast_' + Date.now();
   const el = document.createElement('div');
   el.id = id;
@@ -901,7 +1119,7 @@ function showToast(msg, type){
   setTimeout(() => {
     el.style.opacity = '0';
     setTimeout(() => el.remove(), 300);
-  }, 3000);
+  }, 2000);
 }
 function renderFetchStatus(){
   const m = DATA.monitor;
@@ -927,25 +1145,26 @@ function renderFetchStatus(){
       pill.innerHTML = '<span class="spin"></span>' + esc(m.fetch_message || '正在抓取选中人员数据…');
     } else if (m.fetch_stage === '完成'){
       pill.className = 'pill ok';
-      pill.textContent = '抓取完成 · 新增 ' + (m.fetch_count || 0) + ' 条';
-      // 完成时弹出一次提示，避免用户因抓取太快而误以为没反应
-      if (!m._toast_shown){
-        m._toast_shown = true;
-        showToast('抓取完成：新增 ' + (m.fetch_count || 0) + ' 条待验证', 'ok');
+      const count = (typeof m.fetch_count === 'number') ? m.fetch_count : 0;
+      pill.textContent = '抓取完成 · 新增 ' + count + ' 条';
+      // 完成时弹出一次提示，避免用户因抓取太快而误以为没反应；
+      // 用模块级变量去重，因为 DATA.monitor 每 2 秒会被 refreshMonitor() 整体替换
+      if (_lastFetchStage !== '完成' || _lastFetchCount !== count){
+        showToast('抓取完成：新增 ' + count + ' 条待验证', 'ok');
       }
     } else if (m.fetch_stage === '错误'){
       pill.className = 'pill bad';
       pill.textContent = m.fetch_message || '抓取失败';
-      if (!m._toast_shown){
-        m._toast_shown = true;
+      if (_lastFetchStage !== '错误'){
         showToast('抓取失败：' + (m.fetch_message || '未知错误'), 'err');
       }
     } else {
       pill.className = 'pill';
       pill.textContent = '未抓取';
-      m._toast_shown = false;
     }
   }
+  _lastFetchStage = m.fetch_stage || null;
+  _lastFetchCount = (typeof m.fetch_count === 'number') ? m.fetch_count : 0;
   // 时间线横幅
   const banner = document.getElementById('timelineBanner');
   if (banner){
