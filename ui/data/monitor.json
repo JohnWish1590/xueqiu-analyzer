@@ -1,0 +1,22 @@
+{
+  "api_status": "ok",
+  "cookie_status": "valid",
+  "cookie_expire": "2026-08-31",
+  "last_fetch": "2026-08-13 12:05:31",
+  "next_poll": "2026-08-13 12:15:31",
+  "fetched_total": 1038,
+  "pending": 7,
+  "verified": 142,
+  "backfill_progress": 100,
+  "waf": "api.xueqiu.com 子域直连",
+  "logs": [
+    { "time": "12:05:31", "level": "ok", "msg": "增量轮询 since_id=99312 → 新增 3 条（顾序2 / 谢尔盖1）" },
+    { "time": "12:05:33", "level": "ok", "msg": "主体识别完成：中芯国际(看多)·消费电子(对比)·券商(看空)" },
+    { "time": "12:05:35", "level": "ok", "msg": "β 剥离：沪深300 +0.8% / 半导体α +2.1% / 个股α +0.5%" },
+    { "time": "12:05:37", "level": "ok", "msg": "预测生成：顾序→半导体跟随(78%) / 谢尔盖→券商观望(52%)" },
+    { "time": "11:55:31", "level": "w", "msg": "WAF 挑战触发，重试退避 2s 后成功（限频保护）" },
+    { "time": "11:45:31", "level": "ok", "msg": "增量轮询 since_id=99298 → 无新增" },
+    { "time": "11:35:31", "level": "ok", "msg": "全量回填完成：近 30 天 / 4 人 / 1,035 条" },
+    { "time": "09:10:02", "level": "err", "msg": "Cookie 临近过期(剩18天)，已提醒用户重导" }
+  ]
+}

@@ -1,0 +1,93 @@
+[
+  {
+    "post_id": "p1001",
+    "user": "顾序",
+    "subject": "中芯国际",
+    "pred_stance": "看多",
+    "confidence": 0.78,
+    "sector": "半导体",
+    "involved_sectors": ["半导体", "存储链"],
+    "hist_hit_rate": 68,
+    "hist_sector_hit": 68,
+    "signal": "跟随",
+    "calibration": [
+      { "conf": 0.55, "actual": 0.58 },
+      { "conf": 0.62, "actual": 0.61 },
+      { "conf": 0.70, "actual": 0.66 },
+      { "conf": 0.78, "actual": 0.72 },
+      { "conf": 0.85, "actual": 0.80 }
+    ]
+  },
+  {
+    "post_id": "p1003",
+    "user": "顾序",
+    "subject": "协创数据",
+    "pred_stance": "看多",
+    "confidence": 0.71,
+    "sector": "算力租赁",
+    "involved_sectors": ["算力租赁", "半导体"],
+    "hist_hit_rate": 68,
+    "hist_sector_hit": 71,
+    "signal": "跟随",
+    "calibration": [
+      { "conf": 0.58, "actual": 0.60 },
+      { "conf": 0.65, "actual": 0.63 },
+      { "conf": 0.71, "actual": 0.69 },
+      { "conf": 0.80, "actual": 0.76 }
+    ]
+  },
+  {
+    "post_id": "p1004",
+    "user": "谢尔盖",
+    "subject": "券商",
+    "pred_stance": "看空",
+    "confidence": 0.52,
+    "sector": "券商",
+    "involved_sectors": ["券商", "地产链"],
+    "hist_hit_rate": 51,
+    "hist_sector_hit": 55,
+    "signal": "观望",
+    "calibration": [
+      { "conf": 0.50, "actual": 0.52 },
+      { "conf": 0.55, "actual": 0.51 },
+      { "conf": 0.60, "actual": 0.57 },
+      { "conf": 0.68, "actual": 0.62 }
+    ]
+  },
+  {
+    "post_id": "p1007",
+    "user": "谢尔盖",
+    "subject": "新能源",
+    "pred_stance": "看空",
+    "confidence": 0.49,
+    "sector": "新能源",
+    "involved_sectors": ["新能源"],
+    "hist_hit_rate": 51,
+    "hist_sector_hit": 44,
+    "signal": "反向",
+    "calibration": [
+      { "conf": 0.45, "actual": 0.48 },
+      { "conf": 0.52, "actual": 0.50 },
+      { "conf": 0.58, "actual": 0.53 },
+      { "conf": 0.66, "actual": 0.60 }
+    ]
+  },
+  {
+    "post_id": "p1006",
+    "user": "林深",
+    "subject": "药明康德",
+    "pred_stance": "看多",
+    "confidence": 0.62,
+    "sector": "CXO",
+    "involved_sectors": ["CXO", "医药"],
+    "hist_hit_rate": 59,
+    "hist_sector_hit": 64,
+    "signal": "跟随",
+    "calibration": [
+      { "conf": 0.55, "actual": 0.57 },
+      { "conf": 0.60, "actual": 0.59 },
+      { "conf": 0.66, "actual": 0.63 },
+      { "conf": 0.72, "actual": 0.70 }
+    ]
+  }
+]

@@ -1,0 +1,16 @@
+# 雪球大V观点印证分析工具 · 依赖
+# 核心（必需）
+requests>=2.31
+cryptography>=42.0
+
+# 行情（真实数据；未装时 market 模块会优雅降级，仅演示数据可用）
+akshare>=1.13
+
+# 登录窗抓取（内置浏览器登录拿 cookie；未装时走手动粘贴兜底）
+playwright>=1.40
+
+# 可选：若想用 SDK 而非 requests 直连，可装 openai（当前代码用 requests，不必装）
+# openai>=1.0
+
+# 开发期可选：streamlit（仅在用 streamlit 版 UI 时需要，本项目默认 UI 为静态 HTML，可不装）
+# streamlit>=1.30

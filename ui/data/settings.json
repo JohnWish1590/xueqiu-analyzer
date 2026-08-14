@@ -1,0 +1,19 @@
+{
+  "followed_users": [
+    { "id": "18210001", "name": "顾序", "enabled": true },
+    { "id": "33900002", "name": "谢尔盖", "enabled": true },
+    { "id": "58720003", "name": "老 talk", "enabled": true },
+    { "id": "77120004", "name": "林深", "enabled": false }
+  ],
+  "model": {
+    "provider": "deepseek",
+    "api_key": "sk-demo****************"
+  },
+  "post_types": {
+    "original": true,
+    "long": true,
+    "reply": false
+  },
+  "backfill_days": 30,
+  "skill_enabled": true
+}

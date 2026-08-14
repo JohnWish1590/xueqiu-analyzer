@@ -1,0 +1,98 @@
+[
+  {
+    "name": "顾序",
+    "user_id": "18210001",
+    "desc": "半导体 / 算力",
+    "hit_rate": 68,
+    "n": 142,
+    "ic": 0.11,
+    "matrix": {
+      "bullish": { "t1": 63, "t5": 68, "t10": 64, "t20": 58, "n": 88 },
+      "bearish": { "t1": 61, "t5": 66, "t10": 57, "t20": 53, "n": 54 }
+    },
+    "sectors": [
+      { "sector": "半导体", "hit": 68, "n": 42, "ic": 0.11 },
+      { "sector": "算力租赁", "hit": 71, "n": 28, "ic": 0.14 },
+      { "sector": "存储链", "hit": 65, "n": 33, "ic": 0.09 },
+      { "sector": "消费", "hit": 38, "n": 14, "ic": -0.05 },
+      { "sector": "新能源", "hit": 44, "n": 18, "ic": -0.02 }
+    ],
+    "history": [
+      { "post_id": "p0901", "created_at": "2026-08-05 11:02", "text": "长鑫上市在即，存储价格拐点确认，国产 DRAM 链条估值要重估。", "subject": "存储链", "stance": "看多", "hit": true },
+      { "post_id": "p0807", "created_at": "2026-07-28 10:40", "text": "半导体设备国产化率提速，回调是布局窗口。", "subject": "半导体", "stance": "看多", "hit": true },
+      { "post_id": "p0703", "created_at": "2026-07-15 09:50", "text": "消费电子库存高企，短期难有催化。", "subject": "消费", "stance": "看空", "hit": false }
+    ]
+  },
+  {
+    "name": "谢尔盖",
+    "user_id": "33900002",
+    "desc": "周期 / 新能源",
+    "hit_rate": 51,
+    "n": 96,
+    "ic": -0.01,
+    "matrix": {
+      "bullish": { "t1": 49, "t5": 52, "t10": 48, "t20": 45, "n": 40 },
+      "bearish": { "t1": 58, "t5": 55, "t10": 50, "t20": 47, "n": 56 }
+    },
+    "sectors": [
+      { "sector": "新能源", "hit": 44, "n": 18, "ic": -0.02 },
+      { "sector": "券商", "hit": 55, "n": 20, "ic": 0.03 },
+      { "sector": "地产链", "hit": 53, "n": 22, "ic": 0.01 },
+      { "sector": "有色", "hit": 60, "n": 16, "ic": 0.08 },
+      { "sector": "煤炭", "hit": 62, "n": 20, "ic": 0.10 }
+    ],
+    "history": [
+      { "post_id": "p0902", "created_at": "2026-08-04 13:30", "text": "锂电产能出清遥遥无期，反弹就是减仓机会。", "subject": "新能源", "stance": "看空", "hit": true },
+      { "post_id": "p0712", "created_at": "2026-07-20 14:10", "text": "煤价淡季不淡，高股息仍有配置价值。", "subject": "煤炭", "stance": "看多", "hit": true },
+      { "post_id": "p0601", "created_at": "2026-06-12 11:20", "text": "新能源反弹更多是超跌修复，别追。", "subject": "新能源", "stance": "看空", "hit": false }
+    ]
+  },
+  {
+    "name": "老 talk",
+    "user_id": "58720003",
+    "desc": "宏观 / 策略",
+    "hit_rate": 60,
+    "n": 110,
+    "ic": 0.06,
+    "matrix": {
+      "bullish": { "t1": 57, "t5": 60, "t10": 62, "t20": 64, "n": 58 },
+      "bearish": { "t1": 56, "t5": 59, "t10": 61, "t20": 63, "n": 52 }
+    },
+    "sectors": [
+      { "sector": "大盘", "hit": 60, "n": 30, "ic": 0.06 },
+      { "sector": "半导体", "hit": 63, "n": 25, "ic": 0.09 },
+      { "sector": "医药", "hit": 58, "n": 22, "ic": 0.04 },
+      { "sector": "消费", "hit": 55, "n": 18, "ic": 0.02 },
+      { "sector": "红利", "hit": 66, "n": 15, "ic": 0.12 }
+    ],
+    "history": [
+      { "post_id": "p0903", "created_at": "2026-07-28 10:40", "text": "半导体景气度二阶导转正，设备国产化率提速。", "subject": "半导体", "stance": "看多", "hit": true },
+      { "post_id": "p0811", "created_at": "2026-08-02 20:30", "text": "宽货币向宽信用传导偏慢，维持中性仓。", "subject": "大盘", "stance": "中性", "hit": true },
+      { "post_id": "p0618", "created_at": "2026-06-18 09:15", "text": "红利资产避险属性仍在，回调可配。", "subject": "红利", "stance": "看多", "hit": true }
+    ]
+  },
+  {
+    "name": "林深",
+    "user_id": "77120004",
+    "desc": "医药 / 消费",
+    "hit_rate": 59,
+    "n": 74,
+    "ic": 0.04,
+    "matrix": {
+      "bullish": { "t1": 60, "t5": 62, "t10": 59, "t20": 57, "n": 44 },
+      "bearish": { "t1": 55, "t5": 53, "t10": 51, "t20": 50, "n": 30 }
+    },
+    "sectors": [
+      { "sector": "医药", "hit": 62, "n": 19, "ic": 0.07 },
+      { "sector": "消费", "hit": 58, "n": 17, "ic": 0.03 },
+      { "sector": "CXO", "hit": 64, "n": 12, "ic": 0.09 },
+      { "sector": "白酒", "hit": 50, "n": 14, "ic": -0.01 },
+      { "sector": "新能源车", "hit": 47, "n": 12, "ic": -0.03 }
+    ],
+    "history": [
+      { "post_id": "p0904", "created_at": "2026-07-20 15:05", "text": "消费弱复苏，白酒库存去化慢。", "subject": "消费", "stance": "看空", "hit": false },
+      { "post_id": "p0825", "created_at": "2026-08-01 11:00", "text": "CXO 出海订单回暖，估值压制边际改善。", "subject": "医药", "stance": "看多", "hit": true },
+      { "post_id": "p0710", "created_at": "2026-07-10 13:40", "text": "创新药医保谈判预期改善，板块有修复空间。", "subject": "医药", "stance": "看多", "hit": true }
+    ]
+  }
+]

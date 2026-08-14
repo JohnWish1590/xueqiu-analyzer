@@ -1,0 +1,31 @@
+# 虚拟环境 / 构建产物
+.venv/
+venv/
+build/
+dist/
+*.spec.bak
+__pycache__/
+*.pyc
+
+# 本地数据与密钥（绝不入库）
+data/xueqiu_analyzer.db
+data/xueqiu_analyzer.db-wal
+data/xueqiu_analyzer.db-shm
+data/settings.json
+data/fetch_log.json
+data/fetcher_state.json
+data/fetcher_state_*
+data/server.log
+*.enc
+secret.key
+cookies_cache.enc
+*.log
+
+# 同步盘 / 系统
+.DS_Store
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# WorkBuddy 项目缓存（不入库）
+.workbuddy/

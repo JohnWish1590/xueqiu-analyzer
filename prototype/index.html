@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>雪球大V观点印证分析 · 界面原型</title>
+<style>
+  :root{
+    --bg:#f4f6fa; --panel:#ffffff; --ink:#1f2329; --ink2:#646a73; --line:#e6e9ef;
+    --brand:#2b5fd9; --brand-soft:#eaf0ff;
+    --up:#e23c39; --up-soft:#fdeceb;
+    --down:#16a36a; --down-soft:#e7f6ef;
+    --warn:#e8a200; --warn-soft:#fff5e0;
+    --shadow:0 1px 3px rgba(20,30,60,.08),0 6px 18px rgba(20,30,60,.06);
+    --radius:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--ink);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  .up{color:var(--up)} .down{color:var(--down)} .muted{color:var(--ink2)}
+  .chip{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;font-size:12px;border:1px solid var(--line);background:#fff}
+  .chip.up{color:var(--up);background:var(--up-soft);border-color:#f6c9c7}
+  .chip.down{color:var(--down);background:var(--down-soft);border-color:#bce6d3}
+  .chip.subject{font-weight:600;border-color:var(--brand);background:var(--brand-soft);color:var(--brand)}
+  .chip.contrast{color:var(--ink2);background:#f2f3f5;border-style:dashed}
+  .btn{border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 14px;border-radius:8px;cursor:pointer;font-size:13px;transition:.15s}
+  .btn:hover{border-color:var(--brand);color:var(--brand)}
+  .btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .btn.primary:hover{filter:brightness(1.05);color:#fff}
+
+  header.top{height:56px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;
+    padding:0 18px;gap:18px;position:sticky;top:0;z-index:20}
+  .logo{font-weight:700;font-size:16px;letter-spacing:.3px;display:flex;align-items:center;gap:8px}
+  .logo .dot{width:10px;height:10px;border-radius:3px;background:var(--brand)}
+  .statusbar{display:flex;gap:14px;margin-left:auto;align-items:center;flex-wrap:wrap}
+  .stat{display:flex;flex-direction:column;align-items:flex-start;line-height:1.15;padding:0 12px;border-left:1px solid var(--line)}
+  .stat b{font-size:14px;font-weight:700}
+  .stat span{font-size:11px;color:var(--ink2)}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 9px;border-radius:999px}
+  .pill.ok{background:var(--down-soft);color:var(--down)} .pill.bad{background:var(--up-soft);color:var(--up)}
+  .pill.wait{background:var(--warn-soft);color:var(--warn)} .pill.idle{background:#eef0f3;color:var(--ink2)}
+  .live{width:8px;height:8px;border-radius:50%;background:var(--down);box-shadow:0 0 0 3px rgba(22,163,106,.18);animation:pulse 1.6s infinite}
+  @keyframes pulse{0%{opacity:1}50%{opacity:.35}100%{opacity:1}}
+
+  .layout{display:flex;min-height:calc(100vh - 56px)}
+  nav.side{width:188px;background:#fff;border-right:1px solid var(--line);padding:14px 10px;position:sticky;top:56px;height:calc(100vh - 56px)}
+  nav.side .grp{font-size:11px;color:var(--ink2);text-transform:uppercase;letter-spacing:.6px;margin:14px 8px 6px}
+  nav.side a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;color:var(--ink);cursor:pointer;font-size:13.5px;margin-bottom:2px}
+  nav.side a:hover{background:var(--bg)}
+  nav.side a.active{background:var(--brand-soft);color:var(--brand);font-weight:600}
+  nav.side a .ic{width:18px;text-align:center}
+  nav.side a .badge{margin-left:auto;background:var(--up);color:#fff;font-size:11px;border-radius:999px;padding:0 6px}
+  main{flex:1;padding:20px 24px;max-width:1180px}
+  .view{display:none} .view.active{display:block}
+  h2.vtitle{margin:0 0 4px;font-size:20px} .vsub{color:var(--ink2);margin:0 0 18px;font-size:13px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px 18px;margin-bottom:14px}
+  .card h3{margin:0 0 12px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .row{display:flex;gap:14px;flex-wrap:wrap} .row>*{flex:1;min-width:240px}
+
+  /* tabs */
+  .tabs{display:flex;gap:6px;margin-bottom:14px;align-items:center}
+  .tab{padding:8px 18px;border:1px solid var(--line);border-radius:9px;cursor:pointer;font-size:14px;background:#fff;font-weight:600}
+  .tab.active{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .tab .cnt{font-size:12px;opacity:.8;margin-left:4px}
+  .winwrap{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .winwrap .lab{font-size:12px;color:var(--ink2)}
+  .win{border:1px solid var(--line);background:#fff;border-radius:8px;padding:5px 12px;cursor:pointer;font-size:13px}
+  .win.active{background:var(--brand-soft);border-color:var(--brand);color:var(--brand);font-weight:600}
+
+  /* 时间线卡片 */
+  .day-head{display:flex;align-items:center;gap:10px;padding:6px 2px;border-left:3px solid var(--brand);padding-left:10px;margin:10px 0 6px}
+  .day-head .d{font-weight:700;font-size:14px} .day-head .meta{font-size:12px;color:var(--ink2)}
+  .pcard{background:#fff;border:1px solid var(--line);border-radius:11px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow)}
+  .pcard .top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .pcard .nm{font-weight:700} .pcard .tm{font-size:12px;color:var(--ink2);margin-left:auto}
+  .pcard .text{font-size:13.5px;margin:6px 0 10px;line-height:1.6;background:#fafbfc;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+  .subject-block{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 12px;padding:9px 11px;background:var(--brand-soft);border-radius:9px}
+  .subject-block .lab{font-size:12px;font-weight:700;color:var(--brand)}
+  .attrib{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+  .attr{background:#fafbfc;border:1px solid var(--line);border-radius:9px;padding:8px 10px;text-align:center}
+  .attr .k{font-size:11px;color:var(--ink2)} .attr .v{font-size:15px;font-weight:700;margin-top:2px}
+  .verify{display:flex;align-items:center;gap:8px;font-size:12px;margin-top:6px}
+  .bar{height:6px;border-radius:999px;background:#eceef3;overflow:hidden;flex:1;max-width:160px}
+  .bar>i{display:block;height:100%;background:var(--brand)}
+  .seg{display:inline-block;padding:2px 8px;border-radius:6px;font-size:12px;font-weight:600}
+  .seg.long{background:var(--up-soft);color:var(--up)} .seg.short{background:var(--down-soft);color:var(--down)} .seg.mid{background:#eef0f3;color:var(--ink2)}
+
+  /* 人物页 */
+  .person-wrap{display:flex;gap:16px}
+  .person-list{width:210px;flex:none;background:#fff;border:1px solid var(--line);border-radius:11px;padding:8px;box-shadow:var(--shadow)}
+  .person-list .pi{display:flex;align-items:center;gap:10px;padding:9px;border-radius:9px;cursor:pointer}
+  .person-list .pi:hover{background:var(--bg)} .person-list .pi.active{background:var(--brand-soft)}
+  .person-main{flex:1;min-width:0}
+  table.m{width:100%;border-collapse:collapse;font-size:13px}
+  table.m th,table.m td{border:1px solid var(--line);padding:8px 10px;text-align:center}
+  table.m th{background:#f7f8fb;font-weight:600}
+  table.m td.l{text-align:left}
+  .heat{display:inline-block;min-width:46px;padding:3px 6px;border-radius:6px;font-weight:700}
+  .bars{display:flex;flex-direction:column;gap:7px}
+  .barrow{display:flex;align-items:center;gap:10px;font-size:12.5px}
+  .barrow .nm{width:96px;flex:none} .barrow .track{flex:1;height:9px;background:#eceef3;border-radius:999px;overflow:hidden}
+  .barrow .track>i{display:block;height:100%;background:var(--brand)} .barrow .val{width:110px;flex:none;text-align:right;color:var(--ink2)}
+
+  /* 预测页 */
+  .pred{background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:16px;margin-bottom:14px;border-left:4px solid var(--brand)}
+  .signal{display:inline-flex;align-items:center;gap:6px;font-weight:700;padding:4px 12px;border-radius:999px;font-size:13px}
+  .signal.follow{background:var(--up-soft);color:var(--up)} .signal.hold{background:var(--warn-soft);color:var(--warn)} .signal.reverse{background:var(--down-soft);color:var(--down)}
+  .mini{font-size:12px;color:var(--ink2)}
+
+  /* 监控页 */
+  .mon-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+  .mon{background:#fff;border:1px solid var(--line);border-radius:11px;padding:14px;box-shadow:var(--shadow)}
+  .mon .t{font-size:12px;color:var(--ink2);margin-bottom:6px} .mon .big{font-size:20px;font-weight:700}
+  .log{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;background:#0f1420;color:#c8d3e6;padding:12px;border-radius:9px;height:240px;overflow:auto}
+  .log .ok{color:#5fd39a} .log .err{color:#ff7a75} .log .w{color:#ffcf6b}
+  .avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#7aa2ff,#2b5fd9);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="logo"><span class="dot"></span>雪球大V观点印证分析</div>
+  <div class="statusbar">
+    <span class="pill ok"><span class="live"></span>API 正常</span>
+    <span class="pill ok">Cookie 有效 · 剩 18 天</span>
+    <div class="stat"><b>上次抓取</b><span id="lastFetch">12:05:31</span></div>
+    <div class="stat"><b>下次轮询</b><span>12:15:31</span></div>
+    <div class="stat"><b class="up" id="sbPending">待验证 7</b><span>当前窗口</span></div>
+    <div class="stat"><b class="down" id="sbVerified">已验证 142</b><span>历史回测</span></div>
+    <div class="stat"><b>已抓 1,038</b><span>条发言</span></div>
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="side">
+    <div class="grp">分析视图</div>
+    <a data-view="timeline" class="active"><span class="ic">🗓️</span>时间线<span class="badge" id="navPending">7</span></a>
+    <a data-view="person"><span class="ic">👤</span>人物分析</a>
+    <a data-view="predict"><span class="ic">🔮</span>预测中心<span class="badge" style="background:var(--brand)">NEW</span></a>
+    <div class="grp">配置</div>
+    <a data-view="settings"><span class="ic">⚙️</span>设置</a>
+    <a data-view="monitor"><span class="ic">📡</span>抓取监控</a>
+  </nav>
+
+  <main>
+    <!-- ========== 时间线（默认视图） ========== -->
+    <section id="timeline" class="view active">
+      <h2 class="vtitle">时间线 · 默认视图</h2>
+      <p class="vsub">「待验证」与「已验证」分两个选项卡。待验证顶部可切换时间窗口（1 / 3 / 7 天内），超出窗口的发言自动归入已验证。</p>
+
+      <div class="tabs">
+        <div class="tab active" id="tabPending" onclick="switchTab('pending')">待验证<span class="cnt" id="cntPending">7</span></div>
+        <div class="tab" id="tabVerified" onclick="switchTab('verified')">已验证<span class="cnt" id="cntVerified">142</span></div>
+        <div class="winwrap" id="winWrap">
+          <span class="lab">待验证窗口</span>
+          <span class="win" data-w="1" onclick="setWin(1)">1 天内</span>
+          <span class="win active" data-w="3" onclick="setWin(3)">3 天内</span>
+          <span class="win" id="winCustom" onclick="toggleCustom()">自定义</span>
+          <input type="number" id="customInput" min="1" max="365" placeholder="天" style="width:70px;display:none;padding:5px 8px;border:1px solid var(--line);border-radius:8px;font-size:13px" onchange="applyCustom()" onkeydown="if(event.key==='Enter')applyCustom()">
+        </div>
+      </div>
+
+      <!-- 待验证列表 -->
+      <div id="pendingList"></div>
+      <!-- 已验证列表 -->
+      <div id="verifiedList" style="display:none"></div>
+    </section>
+
+    <!-- ========== 人物分析 ========== -->
+    <section id="person" class="view">
+      <h2 class="vtitle">人物分析</h2>
+      <p class="vsub">从「人」的角度下钻：命中率矩阵、分板块胜率、IC 时序、历史发言明细。准确率由历史回测得出。</p>
+      <div class="person-wrap">
+        <div class="person-list" id="personList">
+          <div class="pi active" data-p="gx"><div class="avatar">顾</div><div><div style="font-weight:700">顾序</div><div class="mini">半导体/算力</div></div></div>
+          <div class="pi" data-p="xer"><div class="avatar" style="background:linear-gradient(135deg,#ff9a6b,#e23c39)">谢</div><div><div style="font-weight:700">谢尔盖</div><div class="mini">周期/新能源</div></div></div>
+          <div class="pi" data-p="lao"><div class="avatar" style="background:linear-gradient(135deg,#9b7bff,#5b3fd9)">老</div><div><div style="font-weight:700">老 talk</div><div class="mini">宏观/策略</div></div></div>
+        </div>
+        <div class="person-main">
+          <div class="card">
+            <h3>顾序 · 命中率矩阵 <span class="chip">样本 N=142</span></h3>
+            <table class="m">
+              <tr><th>观点</th><th>T+1 日</th><th>T+5 日</th><th>T+10 日</th><th>T+20 日</th></tr>
+              <tr><td class="l">看多事件</td><td><span class="heat" style="background:var(--up-soft);color:var(--up)">63%</span></td><td><span class="heat" style="background:var(--up-soft);color:var(--up)">68%</span></td><td><span class="heat" style="background:var(--up-soft);color:var(--up)">64%</span></td><td><span class="heat" style="background:var(--warn-soft);color:var(--warn)">58%</span></td></tr>
+              <tr><td class="l">看空事件</td><td><span class="heat" style="background:var(--down-soft);color:var(--down)">61%</span></td><td><span class="heat" style="background:var(--down-soft);color:var(--down)">66%</span></td><td><span class="heat" style="background:var(--warn-soft);color:var(--warn)">57%</span></td><td><span class="heat" style="background:#eef0f3;color:var(--ink2)">53%</span></td></tr>
+            </table>
+            <p class="mini">注：方向命中率 = 发言后 N 日该板块/个股实际涨跌方向与观点一致的比例。样本量偏小时置信区间宽，已标注 N。</p>
+          </div>
+          <div class="card">
+            <h3>分板块历史胜率 & 赔率（IC 视角）</h3>
+            <div class="bars">
+              <div class="barrow"><span class="nm">半导体</span><span class="track"><i style="width:68%"></i></span><span class="val">68% · IC +0.11</span></div>
+              <div class="barrow"><span class="nm">算力租赁</span><span class="track"><i style="width:71%"></i></span><span class="val">71% · IC +0.14</span></div>
+              <div class="barrow"><span class="nm">存储链</span><span class="track"><i style="width:65%"></i></span><span class="val">65% · IC +0.09</span></div>
+              <div class="barrow"><span class="nm">消费</span><span class="track"><i style="width:38%"></i></span><span class="val">38% · IC -0.05</span></div>
+              <div class="barrow"><span class="nm">新能源</span><span class="track"><i style="width:44%"></i></span><span class="val">44% · IC -0.02</span></div>
+            </div>
+            <p class="mini">结论：该人在「半导体 / 算力租赁 / 存储」有稳定正 IC，消费、新能源为负——跟单应限定在其擅长板块，避免刻舟求剑。</p>
+          </div>
+          <div class="card">
+            <h3>历史发言下钻（点击展开明细）</h3>
+            <div class="pcard" style="box-shadow:none">
+              <div class="top"><span class="seg long">看多</span><span>2026-08-05 存储链</span><span class="seg long" style="background:var(--up-soft);color:var(--up)">T+5 命中</span><span class="tm">+5.6% / 板块α+4.2%</span></div>
+            </div>
+            <div class="pcard" style="box-shadow:none">
+              <div class="top"><span class="seg long">看多</span><span>2026-07-28 半导体</span><span class="seg long" style="background:var(--up-soft);color:var(--up)">T+10 命中</span><span class="tm">+9.1% / 板块α+6.3%</span></div>
+            </div>
+            <div class="pcard" style="box-shadow:none">
+              <div class="top"><span class="seg short">看空</span><span>2026-07-20 消费</span><span class="seg short" style="background:var(--down-soft);color:var(--down)">T+5 反向</span><span class="tm">消费 +1.2% / 看空未兑现</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 预测中心（核心） ========== -->
+    <section id="predict" class="view">
+      <h2 class="vtitle">预测中心 · 核心能力</h2>
+      <p class="vsub">抓到大V发言后<strong>自动预测</strong>个股/板块走向，并挂上该人历史命中胜率与擅长板块。信号非无脑跟：跟随 / 观望 / 反向 = f(该板块历史胜率 × 赔率 × 当前一致性)。</p>
+
+      <div class="pred">
+        <div class="top" style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div class="avatar">顾</div><div class="nm" style="font-weight:700">顾序</div>
+          <span class="chip subject up">看多·半导体</span>
+          <span class="signal follow">建议：跟随</span>
+          <span class="tm muted" style="margin-left:auto">预测于 抓取后 2 秒自动生成</span>
+        </div>
+        <div class="text" style="background:#fafbfc;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13.5px">中芯国际扩产落地，HBM 国产替代逻辑开始兑现。</div>
+        <div class="attrib">
+          <div class="attr"><div class="k">预判走向</div><div class="v up">半导体 偏多</div></div>
+          <div class="attr"><div class="k">置信度</div><div class="v">78%</div></div>
+          <div class="attr"><div class="k">涉及板块</div><div class="v" style="font-size:13px">半导体 / 存储</div></div>
+          <div class="attr"><div class="k">持有周期</div><div class="v" style="font-size:13px">中线 5–10 日</div></div>
+        </div>
+        <div class="verify">挂接历史：半导体命中 <b class="up">68%</b>(N=42) · 擅长板块 Top1 · IC +0.11 → <b>信号权重高</b></div>
+      </div>
+
+      <div class="pred" style="border-left-color:var(--warn)">
+        <div class="top" style="display:flex;align-items:center;gap:10px;margin-bottom:8px">
+          <div class="avatar" style="background:linear-gradient(135deg,#ff9a6b,#e23c39)">谢</div><div class="nm" style="font-weight:700">谢尔盖</div>
+          <span class="chip subject down">看空·新能源</span>
+          <span class="signal hold">建议：观望</span>
+          <span class="tm muted" style="margin-left:auto">预测于 抓取后 2 秒自动生成</span>
+        </div>
+        <div class="text" style="background:#fafbfc;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:13.5px">锂电产能出清遥遥无期，反弹就是减仓机会。</div>
+        <div class="attrib">
+          <div class="attr"><div class="k">预判走向</div><div class="v down">新能源 偏空</div></div>
+          <div class="attr"><div class="k">置信度</div><div class="v">52%</div></div>
+          <div class="attr"><div class="k">涉及板块</div><div class="v" style="font-size:13px">新能源</div></div>
+          <div class="attr"><div class="k">持有周期</div><div class="v" style="font-size:13px">短线 <5 日</div></div>
+        </div>
+        <div class="verify">挂接历史：新能源命中 <b class="down">44%</b>(N=18) · 非擅长板块 · IC -0.02 → <b>信号权重低，建议观望</b></div>
+      </div>
+
+      <div class="card">
+        <h3>预测校准曲线（可靠性图）</h3>
+        <p class="mini">横轴 = 模型输出置信度分箱，纵轴 = 实际命中率。理想情况两点应贴近对角线。随样本回写持续校准。</p>
+        <div style="display:flex;gap:24px;align-items:flex-end;height:160px;padding:10px 20px">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:34px;background:var(--brand);border-radius:6px 6px 0 0;height:54px"></div><span class="mini">50–60%</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:34px;background:var(--brand);border-radius:6px 6px 0 0;height:88px"></div><span class="mini">60–70%</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:34px;background:var(--brand);border-radius:6px 6px 0 0;height:120px"></div><span class="mini">70–80%</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:34px;background:var(--brand);opacity:.5;border-radius:6px 6px 0 0;height:132px"></div><span class="mini">80%+</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 设置 ========== -->
+    <section id="settings" class="view">
+      <h2 class="vtitle">设置</h2>
+      <p class="vsub">配置跟踪对象、Cookie 鉴权、AI 模型、抓取范围与自定义分析 Skill。配置与数据分离（开源友好）。</p>
+
+      <div class="card">
+        <h3>① 跟踪大V管理</h3>
+        <div class="field">
+          <label>输入要跟踪的大V</label>
+          <div class="row">
+            <input type="text" placeholder="可填 user_id（如 1821xxxx），或雪球昵称（自动解析为 ID）">
+            <button class="btn primary" style="flex:none;max-width:160px">解析并获取 ID</button>
+          </div>
+          <p class="hint" style="font-size:12px;color:var(--ink2);margin:6px 0 0">支持直接读取「雪球特别关注」cookie 工具，一键导入你已关注的名单。</p>
+        </div>
+        <div id="userList">
+          <div class="userline" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px"><div class="avatar">顾</div><div style="flex:1"><div style="font-weight:700">顾序</div><div class="mini">id 1821xxxx</div></div><div class="check on" style="flex:none;width:18px;height:18px;border:1.5px solid var(--line);border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:var(--brand);border-color:var(--brand);color:#fff" onclick="this.classList.toggle('on');this.style.background=this.classList.contains('on')?'var(--brand)':'#fff';this.style.color=this.classList.contains('on')?'#fff':'';this.textContent=this.classList.contains('on')?'✓':''">✓</div></div>
+          <div class="userline" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px"><div class="avatar" style="background:linear-gradient(135deg,#ff9a6b,#e23c39)">谢</div><div style="flex:1"><div style="font-weight:700">谢尔盖</div><div class="mini">id 3390yyyy</div></div><div class="check on" style="flex:none;width:18px;height:18px;border:1.5px solid var(--line);border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer;background:var(--brand);border-color:var(--brand);color:#fff" onclick="this.classList.toggle('on');this.style.background=this.classList.contains('on')?'var(--brand)':'#fff';this.style.color=this.classList.contains('on')?'#fff':'';this.textContent=this.classList.contains('on')?'✓':''">✓</div></div>
+          <div class="userline" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px"><div class="avatar" style="background:linear-gradient(135deg,#9b7bff,#5b3fd9)">老</div><div style="flex:1"><div style="font-weight:700">老 talk</div><div class="mini">id 5872zzzz</div></div><div class="check" style="flex:none;width:18px;height:18px;border:1.5px solid var(--line);border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer" onclick="this.classList.toggle('on');this.style.background=this.classList.contains('on')?'var(--brand)':'#fff';this.style.color=this.classList.contains('on')?'#fff':'';this.textContent=this.classList.contains('on')?'✓':''"></div></div>
+        </div>
+        <p class="mini">打勾即纳入分析。每人对应独立人物页面与回测。</p>
+      </div>
+
+      <div class="row">
+        <div class="card">
+          <h3>② Cookie 鉴权</h3>
+          <div class="kv" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line)"><span>状态</span><span class="pill ok">有效</span></div>
+          <div class="kv" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line)"><span>来源</span><span>xueqiu-watch-v2 加密库</span></div>
+          <div class="kv" style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px dashed var(--line)"><span>剩余有效期</span><span class="up">18 天</span></div>
+          <div class="kv" style="display:flex;justify-content:space-between;padding:8px 0"><span>WAF 绕过</span><span class="pill ok">api.xueqiu.com 子域直连</span></div>
+          <button class="btn" style="margin-top:10px">重新导入 Cookie</button>
+        </div>
+        <div class="card">
+          <h3>③ AI 模型与密钥</h3>
+          <div class="field"><label>模型选择</label>
+            <select><option>DeepSeek · deepseek-chat（默认）</option><option>通义千问 · qwen-plus</option><option>智谱 · glm-4-flash</option></select>
+          </div>
+          <div class="field"><label>API Key</label><input type="password" placeholder="sk-****************" value="sk-demo********"></div>
+          <p class="mini">无 Key 时自动降级为本地启发式分析（仅做实体抽取与情绪判断，不生成结构化观点）。</p>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="card">
+          <h3>④ 抓取配置</h3>
+          <div class="field"><label>发言类型 <span class="hint">默认仅原帖 + 长文</span></label>
+            <div class="userline" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px"><span>原帖</span><div class="toggle on" style="margin-left:auto;position:relative;width:42px;height:23px;background:var(--brand);border-radius:999px;cursor:pointer;flex:none" onclick="this.classList.toggle('on');this.style.background=this.classList.contains('on')?'var(--brand)':'#cfd4dc'"><div style="position:absolute;top:2px;left:21px;width:19px;height:19px;background:#fff;border-radius:50%"></div></div></div>
+            <div class="userline" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px"><span>长文</span><div class="toggle on" style="margin-left:auto;position:relative;width:42px;height:23px;background:var(--brand);border-radius:999px;cursor:pointer;flex:none" onclick="this.classList.toggle('on');this.style.background=this.classList.contains('on')?'var(--brand)':'#cfd4dc'"><div style="position:absolute;top:2px;left:21px;width:19px;height:19px;background:#fff;border-radius:50%"></div></div></div>
+            <div class="userline" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px"><span>回帖 <span class="mini">（观点片面，默认关）</span></span><div class="toggle" style="margin-left:auto;position:relative;width:42px;height:23px;background:#cfd4dc;border-radius:999px;cursor:pointer;flex:none" onclick="this.classList.toggle('on');this.style.background=this.classList.contains('on')?'var(--brand)':'#cfd4dc'"><div style="position:absolute;top:2px;left:2px;width:19px;height:19px;background:#fff;border-radius:50%"></div></div></div>
+          </div>
+          <div class="field"><label>抓取时间范围 <span class="hint">首次全量回填</span></label>
+            <select><option>近 1 个月（默认）</option><option>近 10 天</option><option>近 3 个月</option></select>
+          </div>
+          <div class="field"><label>增量轮询间隔</label>
+            <select><option>每 10 分钟（默认）</option><option>每 30 分钟</option><option>每 1 小时</option></select>
+          </div>
+        </div>
+        <div class="card">
+          <h3>⑤ 自定义分析 Skill</h3>
+          <p class="mini" style="margin-top:0">在默认 API 分析之外，挂载你自己的分析逻辑，使不同用户结果可差异化。</p>
+          <div class="userline" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px"><div style="flex:1"><div style="font-weight:700">example_skill.py</div><div class="mini">analyze(post, base) → dict</div></div><div class="toggle on" style="position:relative;width:42px;height:23px;background:var(--brand);border-radius:999px;cursor:pointer;flex:none" onclick="this.classList.toggle('on');this.style.background=this.classList.contains('on')?'var(--brand)':'#cfd4dc'"><div style="position:absolute;top:2px;left:21px;width:19px;height:19px;background:#fff;border-radius:50%"></div></div></div>
+          <div class="userline" style="display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--line);border-radius:9px;margin-bottom:8px"><div style="flex:1"><div style="font-weight:700">my_sector_rotation.py</div><div class="mini">板块轮动评分</div></div><div class="toggle" style="position:relative;width:42px;height:23px;background:#cfd4dc;border-radius:999px;cursor:pointer;flex:none" onclick="this.classList.toggle('on');this.style.background=this.classList.contains('on')?'var(--brand)':'#cfd4dc'"><div style="position:absolute;top:2px;left:2px;width:19px;height:19px;background:#fff;border-radius:50%"></div></div></div>
+          <button class="btn" style="margin-top:6px">＋ 添加 Skill 文件</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== 抓取监控 ========== -->
+    <section id="monitor" class="view">
+      <h2 class="vtitle">抓取监控 / API 状态</h2>
+      <p class="vsub">实时观察 api.xueqiu.com 访问、Cookie 健康、增量轮询与全量回填进度。</p>
+      <div class="mon-grid">
+        <div class="mon"><div class="t">API 状态</div><div class="big"><span class="pill ok"><span class="live"></span>正常</span></div></div>
+        <div class="mon"><div class="t">Cookie 有效期</div><div class="big up">18 天</div></div>
+        <div class="mon"><div class="t">WAF 绕过</div><div class="big" style="font-size:15px">api.xueqiu.com 直连</div></div>
+        <div class="mon"><div class="t">上次抓取</div><div class="big">12:05:31</div></div>
+        <div class="mon"><div class="t">下次轮询</div><div class="big">12:15:31</div></div>
+        <div class="mon"><div class="t">本次新增</div><div class="big up">+3 条</div></div>
+        <div class="mon"><div class="t">已抓总量</div><div class="big">1,038 条</div></div>
+        <div class="mon"><div class="t">回填进度</div><div class="big">100%</div></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h3>调度日志</h3>
+        <div class="log">
+<span class="ok">[12:05:31] 增量轮询 since_id=99312 → 新增 3 条（顾序2 / 谢尔盖1）</span>
+<span class="ok">[12:05:33] 主体识别完成：中芯国际(看多)·消费电子(对比)·券商(看空)</span>
+<span class="ok">[12:05:35] β 剥离：沪深300 +0.8% / 半导体α +2.1% / 个股α +0.5%</span>
+<span class="ok">[12:05:37] 预测生成：顾序→半导体跟随(78%) / 谢尔盖→券商观望(52%)</span>
+<span class="w">[11:55:31] WAF 挑战触发，重试退避 2s 后成功（限频保护）</span>
+<span class="ok">[11:45:31] 增量轮询 since_id=99298 → 无新增</span>
+<span class="ok">[11:35:31] 全量回填完成：近 30 天 / 3 人 / 1,035 条</span>
+<span class="err">[09:10:02] Cookie 临近过期(剩18天)，已提醒用户重导</span>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script>
+  // 视图切换
+  document.querySelectorAll('nav.side a').forEach(a=>{
+    a.addEventListener('click',()=>{
+      document.querySelectorAll('nav.side a').forEach(x=>x.classList.remove('active'));
+      document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+      a.classList.add('active');
+      document.getElementById(a.dataset.view).classList.add('active');
+    });
+  });
+  // 人物列表切换高亮
+  document.querySelectorAll('#personList .pi').forEach(p=>{
+    p.addEventListener('click',()=>{
+      document.querySelectorAll('#personList .pi').forEach(x=>x.classList.remove('active'));
+      p.classList.add('active');
+    });
+  });
+
+  // ===== 时间线：待验证 / 已验证 选项卡 + 时间窗口 =====
+  const TODAY = new Date('2026-08-13');
+  // 演示数据：date 为发言日期；超过窗口的归入已验证
+  const posts = [
+    {who:'顾序',av:'顾',color:'',stance:'看多·半导体',date:'2026-08-13',time:'10:21',
+      text:'中芯国际这波扩产落地，HBM 国产替代逻辑开始兑现；对比某消费电子龙头还在杀估值，谁有前途一目了然。',
+      subjects:[{n:'中芯国际 688981',d:'up'}],contrasts:[{n:'消费电子龙头·对比衬托'}],
+      beta:0.8,sectorA:2.1,actual:3.4,alpha:0.5,hit:68,n:42,horizon:'中线'},
+    {who:'顾序',av:'顾',color:'',stance:'看多·算力租赁',date:'2026-08-12',time:'14:03',
+      text:'协创数据订单能见度到年底，租赁机柜上架率超预期。反观某些纯概念票，没有真实现金流就是空中楼阁。',
+      subjects:[{n:'协创数据 300857',d:'up'}],contrasts:[{n:'纯概念票·对比衬托'}],
+      beta:0.4,sectorA:1.6,actual:2.3,alpha:0.3,hit:71,n:28,horizon:'中线'},
+    {who:'谢尔盖',av:'谢',color:'linear-gradient(135deg,#ff9a6b,#e23c39)',stance:'看空·券商',date:'2026-08-11',time:'09:18',
+      text:'量能没跟上还硬拉券商，纯护盘套路。地产链那点政策脉冲撑不了几天，别上头。',
+      subjects:[{n:'券商',d:'down'},{n:'地产链',d:'down'}],contrasts:[],
+      beta:-0.3,sectorA:-1.2,actual:-1.5,alpha:-0.3,hit:55,n:20,horizon:'短线'},
+    {who:'顾序',av:'顾',color:'',stance:'看多·存储链',date:'2026-08-10',time:'15:40',
+      text:'长鑫产能爬坡超预期，存储价格拐点坐实，国产 DRAM 链条要重估。',
+      subjects:[{n:'存储链',d:'up'}],contrasts:[],
+      beta:1.0,sectorA:2.4,actual:3.6,alpha:0.2,hit:65,n:33,horizon:'中线'},
+    {who:'老 talk',av:'老',color:'linear-gradient(135deg,#9b7bff,#5b3fd9)',stance:'中性·宏观',date:'2026-08-08',time:'20:11',
+      text:'社融结构仍偏弱，宽货币到宽信用还没打通，仓位上别太激进。',
+      subjects:[{n:'大盘·中性',d:'mid'}],contrasts:[],
+      beta:0.2,sectorA:0.0,actual:0.2,alpha:0.0,hit:60,n:25,horizon:'中线'},
+    // —— 以下为已验证（默认 3 天窗口下已超出）——
+    {who:'顾序',av:'顾',color:'',stance:'看多·存储链',date:'2026-08-05',time:'11:02',verified:true,
+      text:'长鑫上市在即，存储价格拐点确认，国产 DRAM 链条估值要重估。',
+      subjects:[{n:'存储链',d:'up'}],contrasts:[],
+      beta:1.0,sectorA:4.2,actual:5.6,alpha:0.4,hit:68,n:42,horizon:'中线',t5:'+5.6%',res:'看多命中'},
+    {who:'谢尔盖',av:'谢',color:'linear-gradient(135deg,#ff9a6b,#e23c39)',stance:'看空·新能源',date:'2026-08-04',time:'13:30',verified:true,
+      text:'锂电产能出清遥遥无期，反弹就是减仓机会。',
+      subjects:[{n:'新能源',d:'down'}],contrasts:[],
+      beta:-0.6,sectorA:-2.0,actual:-2.4,alpha:-0.2,hit:44,n:18,horizon:'短线',t5:'-2.4%',res:'看空命中'},
+  ];
+
+  let winDays = 3;
+  function daysAgo(d){ return Math.round((TODAY - new Date(d))/86400000); }
+  function fmtDate(d){ const x=new Date(d); return (x.getMonth()+1)+'-'+x.getDate(); }
+
+  function pendingCard(p){
+    const subj = p.subjects.map(s=>`<span class="chip subject ${s.d==='up'?'up':s.d==='down'?'down':''}">${s.n} · ${s.d==='up'?'看多':s.d==='down'?'看空':'中性'}</span>`).join(' ');
+    const con = p.contrasts.length? p.contrasts.map(c=>`<span class="chip contrast">${c.n}</span>`).join(' ') : '';
+    const stanceCls = p.stance.includes('看多')?'up':p.stance.includes('看空')?'down':'';
+    return `<div class="pcard">
+      <div class="top"><div class="avatar" style="${p.color?'background:'+p.color:''}">${p.av}</div><div class="nm">${p.who}</div><span class="chip subject ${stanceCls}">${p.stance}</span><span class="tm">${p.date} ${p.time}</span></div>
+      <div class="text">${p.text}</div>
+      <div class="subject-block"><span class="lab">主体识别</span>${subj}${con}</div>
+      <div class="attrib">
+        <div class="attr"><div class="k">大盘β</div><div class="v ${p.beta>=0?'up':'down'}">${p.beta>=0?'+':''}${p.beta}%</div></div>
+        <div class="attr"><div class="k">板块α</div><div class="v ${p.sectorA>=0?'up':'down'}">${p.sectorA>=0?'+':''}${p.sectorA}%</div></div>
+        <div class="attr"><div class="k">个股实际</div><div class="v ${p.actual>=0?'up':'down'}">${p.actual>=0?'+':''}${p.actual}%</div></div>
+        <div class="attr"><div class="k">个股超额α</div><div class="v ${p.alpha>=0?'up':'down'}">${p.alpha>=0?'+':''}${p.alpha}%</div></div>
+      </div>
+      <div class="verify">该人历史命中率 <div class="bar"><i style="width:${p.hit}%"></i></div><span class="muted">${p.stance.split('·')[1]||''} ${p.hit}% · N=${p.n}</span></div>
+    </div>`;
+  }
+  function verifiedCard(p){
+    const resCls = p.res.includes('看多')?'long':p.res.includes('看空')?'short':'mid';
+    const subj = p.subjects.map(s=>`<span class="chip subject ${s.d==='up'?'up':s.d==='down'?'down':''}">${s.n}</span>`).join(' ');
+    return `<div class="pcard">
+      <div class="top"><div class="avatar" style="${p.color?'background:'+p.color:''}">${p.av}</div><div class="nm">${p.who}</div><span class="chip subject">${p.stance}</span><span class="tm">${p.date}</span></div>
+      <div class="text">${p.text}</div>
+      <div class="subject-block"><span class="lab">主体识别</span>${subj}</div>
+      <div class="attrib">
+        <div class="attr"><div class="k">大盘β</div><div class="v ${p.beta>=0?'up':'down'}">${p.beta>=0?'+':''}${p.beta}%</div></div>
+        <div class="attr"><div class="k">板块α</div><div class="v ${p.sectorA>=0?'up':'down'}">${p.sectorA>=0?'+':''}${p.sectorA}%</div></div>
+        <div class="attr"><div class="k">T+5 实际</div><div class="v ${p.actual>=0?'up':'down'}">${p.actual>=0?'+':''}${p.actual}%</div></div>
+        <div class="attr"><div class="k">个股超额α</div><div class="v ${p.alpha>=0?'up':'down'}">${p.alpha>=0?'+':''}${p.alpha}%</div></div>
+      </div>
+      <div class="verify"><span class="seg ${resCls}">${p.res}</span> <span class="muted">T+5 ${p.t5} · 该人 ${p.hit}%</span></div>
+    </div>`;
+  }
+
+  function render(){
+    const pend = posts.filter(p=>!p.verified && daysAgo(p.date) <= winDays);
+    const verified = posts.filter(p=>p.verified || daysAgo(p.date) > winDays);
+    document.getElementById('pendingList').innerHTML = pend.length? pend.map(pendingCard).join('') : '<div class="card muted" style="text-align:center">当前窗口内无待验证发言</div>';
+    document.getElementById('verifiedList').innerHTML = verified.length? verified.map(verifiedCard).join('') : '<div class="card muted" style="text-align:center">暂无已验证发言</div>';
+    // 计数（演示：导航/状态条用真实条数 + 历史 142 基数）
+    document.getElementById('cntPending').textContent = pend.length;
+    document.getElementById('navPending').textContent = pend.length;
+    document.getElementById('cntVerified').textContent = 142 + verified.length;
+    document.getElementById('sbPending').textContent = '待验证 ' + pend.length;
+    document.getElementById('sbVerified').textContent = '已验证 ' + (142 + verified.length);
+  }
+  function switchTab(t){
+    document.getElementById('tabPending').classList.toggle('active', t==='pending');
+    document.getElementById('tabVerified').classList.toggle('active', t==='verified');
+    document.getElementById('pendingList').style.display = t==='pending'?'block':'none';
+    document.getElementById('verifiedList').style.display = t==='verified'?'block':'none';
+    document.getElementById('winWrap').style.display = t==='pending'?'flex':'none';
+  }
+  function setWin(w){
+    winDays = w;
+    document.querySelectorAll('.win').forEach(x=>x.classList.toggle('active', +x.dataset.w===w));
+    document.getElementById('customInput').style.display='none';
+    render();
+  }
+  function toggleCustom(){
+    const inp=document.getElementById('customInput');
+    if(inp.style.display==='none'){
+      document.querySelectorAll('.win').forEach(x=>x.classList.remove('active'));
+      document.getElementById('winCustom').classList.add('active');
+      inp.style.display='inline-block'; inp.focus();
+    }
+  }
+  function applyCustom(){
+    const v=parseInt(document.getElementById('customInput').value);
+    if(v&&v>0){ winDays=v; render(); }
+  }
+  render();
+</script>
+</body>
+</html>

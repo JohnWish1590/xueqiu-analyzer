@@ -1,0 +1,104 @@
+[
+  {
+    "post_id": "p1001",
+    "user_name": "顾序",
+    "user_id": "18210001",
+    "created_at": "2026-08-13 10:21",
+    "text": "中芯国际这波扩产落地，HBM 国产替代逻辑开始兑现；对比某消费电子龙头还在杀估值，谁有前途一目了然。",
+    "post_type": "original",
+    "subject": { "name": "中芯国际", "code": "688981", "stance": "看多", "horizon": "中线" },
+    "contrast": [
+      { "name": "消费电子龙头", "code": "000725", "note": "对比衬托标的，仅展示不进回测" }
+    ],
+    "summary": "HBM 国产替代逻辑兑现，半导体链条重估",
+    "attrib": { "index_beta": 0.8, "sector_alpha": 2.1, "stock_actual": 3.4, "stock_alpha": 0.5 },
+    "hist_hit_rate": 68,
+    "hist_n": 42
+  },
+  {
+    "post_id": "p1002",
+    "user_name": "顾序",
+    "user_id": "18210001",
+    "created_at": "2026-08-13 15:48",
+    "text": "长鑫产能爬坡超预期，存储价格拐点坐实，国产 DRAM 链条要重估。这一轮不是主题炒作，是业绩拐点。",
+    "post_type": "long",
+    "subject": { "name": "存储链", "code": "399220", "stance": "看多", "horizon": "中线" },
+    "contrast": [],
+    "summary": "存储价格拐点确认，国产 DRAM 估值重估",
+    "attrib": { "index_beta": 1.0, "sector_alpha": 2.4, "stock_actual": 3.6, "stock_alpha": 0.2 },
+    "hist_hit_rate": 65,
+    "hist_n": 33
+  },
+  {
+    "post_id": "p1003",
+    "user_name": "顾序",
+    "user_id": "18210001",
+    "created_at": "2026-08-12 14:03",
+    "text": "协创数据订单能见度到年底，租赁机柜上架率超预期。反观某些纯概念票，没有真实现金流就是空中楼阁。",
+    "post_type": "long",
+    "subject": { "name": "协创数据", "code": "300857", "stance": "看多", "horizon": "中线" },
+    "contrast": [
+      { "name": "纯概念票", "code": "", "note": "对比衬托标的，仅展示不进回测" }
+    ],
+    "summary": "算力租赁上架率超预期，业绩兑现确定性强",
+    "attrib": { "index_beta": 0.4, "sector_alpha": 1.6, "stock_actual": 2.3, "stock_alpha": 0.3 },
+    "hist_hit_rate": 71,
+    "hist_n": 28
+  },
+  {
+    "post_id": "p1004",
+    "user_name": "谢尔盖",
+    "user_id": "33900002",
+    "created_at": "2026-08-11 09:18",
+    "text": "量能没跟上还硬拉券商，纯护盘套路。地产链那点政策脉冲撑不了几天，别上头。",
+    "post_type": "original",
+    "subject": { "name": "券商", "code": "399975", "stance": "看空", "horizon": "短线" },
+    "contrast": [],
+    "summary": "券商量价背离，护盘难持续",
+    "attrib": { "index_beta": -0.3, "sector_alpha": -1.2, "stock_actual": -1.5, "stock_alpha": -0.3 },
+    "hist_hit_rate": 55,
+    "hist_n": 20
+  },
+  {
+    "post_id": "p1005",
+    "user_name": "老 talk",
+    "user_id": "58720003",
+    "created_at": "2026-08-10 20:11",
+    "text": "社融结构仍偏弱，宽货币到宽信用还没打通，仓位上别太激进，等右侧信号更稳。",
+    "post_type": "original",
+    "subject": { "name": "大盘", "code": "000300", "stance": "中性", "horizon": "中线" },
+    "contrast": [],
+    "summary": "信用传导不畅，维持中性仓位",
+    "attrib": { "index_beta": 0.2, "sector_alpha": 0.0, "stock_actual": 0.2, "stock_alpha": 0.0 },
+    "hist_hit_rate": 60,
+    "hist_n": 25
+  },
+  {
+    "post_id": "p1006",
+    "user_name": "林深",
+    "user_id": "77120004",
+    "created_at": "2026-08-09 11:32",
+    "text": "药明康德海外订单回暖，CXO 出海逻辑修复，估值压制因素在边际改善。",
+    "post_type": "original",
+    "subject": { "name": "药明康德", "code": "603259", "stance": "看多", "horizon": "中线" },
+    "contrast": [],
+    "summary": "CXO 出海订单回暖，估值修复",
+    "attrib": { "index_beta": 0.6, "sector_alpha": 1.8, "stock_actual": 2.6, "stock_alpha": 0.4 },
+    "hist_hit_rate": 62,
+    "hist_n": 19
+  },
+  {
+    "post_id": "p1007",
+    "user_name": "谢尔盖",
+    "user_id": "33900002",
+    "created_at": "2026-08-08 13:30",
+    "text": "锂电产能出清遥遥无期，反弹就是减仓机会，别把反抽当反转。",
+    "post_type": "reply",
+    "subject": { "name": "新能源", "code": "399808", "stance": "看空", "horizon": "短线" },
+    "contrast": [],
+    "summary": "锂电产能出清慢，反弹减仓",
+    "attrib": { "index_beta": -0.6, "sector_alpha": -2.0, "stock_actual": -2.4, "stock_alpha": -0.2 },
+    "hist_hit_rate": 44,
+    "hist_n": 18
+  }
+]
