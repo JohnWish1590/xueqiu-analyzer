@@ -77,7 +77,7 @@
 ```
 xueqiu-analyzer/
 ├── server.py              # 本地 Web 服务入口（端口 8765）
-├── run.py                 # 双击 exe 引导入口（初始化DB + 起服务 + 开浏览器 + 可选守护）
+├── run.py                 # 程序入口（初始化DB + 起服务 + 开浏览器 + 可选守护）
 ├── config.py              # 路径/常量/设置读写
 ├── db.py                  # SQLite 数据层（7 张表，单例连接 + WAL）
 ├── fetcher.py             # 抓取 + 分析 + 回测编排，后台自动轮询 worker
@@ -87,7 +87,7 @@ xueqiu-analyzer/
 ├── market.py              # 行情获取层（akshare，真实数据）
 ├── cookie_provider.py     # Cookie 统一入口（手动/v2/游客兜底）
 ├── sample_data.py         # 示例/演示数据生成
-├── build.spec             # PyInstaller 打包配置（可选）
+├── build.spec             # （可选）想自行打包成 exe 时用的 PyInstaller 配置
 ├── requirements.txt       # Python 依赖
 ├── .gitignore
 ├── data/                  # 运行时生成（DB / settings.json / 运行态，已 gitignore）
@@ -128,15 +128,7 @@ python server.py
 
 首次进入是「设置 / 演示模式」：可以直接用 `ui/data/` 里的占位数据预览界面；要分析真实大V，按下面「配置」步骤接好 Cookie 和跟踪对象即可。
 
-> **📦 怎么分发给别人用？** 本仓库**目前没有发布 GitHub Release**（仅有源码）。对方拿到的标准方式是：① `git clone` 或「Download ZIP」下载源码 → ② `pip install -r requirements.txt` → ③ `python server.py` → 浏览器打开 `http://localhost:8765`。若想给对方「双击即用」的 exe，用下面「一键打包」生成（产物在 `dist/`）。Cookie 一律配合下方「Cookie 管家」扩展获取（也支持手动粘贴）。
-
-### 一键打包（可选）
-
-```bash
-pip install pyinstaller
-pyinstaller build.spec
-# 产物在 dist/，双击即可运行（会自动起服务并打开浏览器）
-```
+> **🤖 给 Agent / 朋友安装**：本仓库**只有源码、没有发布 exe**。把仓库地址 **https://github.com/JohnWish1590/xueqiu-analyzer** 发给任意会写代码的 AI Agent（或懂 Python 的朋友），它就能照下面三步自己装好并跑起来：① `git clone` 或「Download ZIP」下载 → ② `pip install -r requirements.txt` → ③ `python server.py` → 浏览器打开 `http://localhost:8765`。Cookie 一律配合下方「Cookie 管家」扩展获取（也支持手动粘贴）。
 
 ---
 
