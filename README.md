@@ -130,6 +130,30 @@ python server.py
 
 > **🤖 给 Agent / 朋友安装**：本仓库**只有源码、没有发布 exe**。把仓库地址 **https://github.com/JohnWish1590/xueqiu-analyzer** 发给任意会写代码的 AI Agent（或懂 Python 的朋友），它就能照下面三步自己装好并跑起来：① `git clone` 或「Download ZIP」下载 → ② `pip install -r requirements.txt` → ③ `python server.py` → 浏览器打开 `http://localhost:8765`。Cookie 一律配合下方「Cookie 管家」扩展获取（也支持手动粘贴）。
 
+### 可直接转发给 Agent 的安装话术
+
+复制下面代码块发给 agent 即可，它会自己 clone + 安装 + 起服务；**Cookie 那步需人在浏览器里登录雪球并点扩展复制，agent 无法代登录**。
+
+```
+请帮我把下面这个本地研究工具在本地跑起来（纯本地、数据不上传）：
+
+仓库：https://github.com/JohnWish1590/xueqiu-analyzer
+
+步骤：
+1. 下载：git clone https://github.com/JohnWish1590/xueqiu-analyzer.git（或 Download ZIP）
+2. 安装：cd xueqiu-analyzer && pip install -r requirements.txt
+3. 启动：python server.py（会起本地 Web 服务并提示打开 http://localhost:8765）
+4. 浏览器打开 http://localhost:8765 即可使用
+
+Cookie（必须）：装 Chrome 扩展 Cookie 管家 https://github.com/JohnWish1590/cookie-picker
+  → chrome://extensions/ 开开发者模式 → 加载已解压的扩展程序 → 选该目录
+  → 浏览器登录 xueqiu.com → 点橙色图标 → 勾选「雪球」→ 测试读取 → 复制
+  → 回工具「设置 → Cookie 鉴权」直接粘贴（JSON 自动提取雪球部分）→ 保存 Cookie → 显示 ✅ 保存成功
+
+环境：Python 3.10+，Windows/macOS/Linux；首次抓取需联网（akshare 真实行情）；
+不填 API Key 也能跑（纯规则兜底）；数据全在本机 SQLite，不上传云端。
+```
+
 ---
 
 ## 六、配置
