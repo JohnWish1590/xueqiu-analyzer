@@ -117,7 +117,7 @@ cd xueqiu-analyzer
 pip install -r requirements.txt
 ```
 
-> 本工具核心**无需雪哨等第三方工具**；**推荐但非必须**配合 Chrome 扩展 **[Cookie 管家（cookie-picker）](https://github.com/JohnWish1590/cookie-picker)** 一键取 Cookie（也支持手动粘贴，详见下文「Cookie 鉴权」）。
+> 本工具需手动粘贴 Cookie；推荐使用配套的 Chrome 扩展 **[Cookie 管家（cookie-picker）](https://github.com/JohnWish1590/cookie-picker)** 一键取 Cookie（详见下文「Cookie 鉴权」）。
 
 ### 运行
 
@@ -128,7 +128,7 @@ python server.py
 
 首次进入是「设置 / 演示模式」：可以直接用 `ui/data/` 里的占位数据预览界面；要分析真实大V，按下面「配置」步骤接好 Cookie 和跟踪对象即可。
 
-> **📦 怎么分发给别人用？** 本仓库**目前没有发布 GitHub Release**（仅有源码）。对方拿到的标准方式是：① `git clone` 或「Download ZIP」下载源码 → ② `pip install -r requirements.txt` → ③ `python server.py` → 浏览器打开 `http://localhost:8765`。若想给对方「双击即用」的 exe，用下面「一键打包」生成（产物在 `dist/`）。Cookie 一律配合下方「Cookie 管家」扩展获取，对方**不需要安装雪哨**。
+> **📦 怎么分发给别人用？** 本仓库**目前没有发布 GitHub Release**（仅有源码）。对方拿到的标准方式是：① `git clone` 或「Download ZIP」下载源码 → ② `pip install -r requirements.txt` → ③ `python server.py` → 浏览器打开 `http://localhost:8765`。若想给对方「双击即用」的 exe，用下面「一键打包」生成（产物在 `dist/`）。Cookie 一律配合下方「Cookie 管家」扩展获取（也支持手动粘贴）。
 
 ### 一键打包（可选）
 
