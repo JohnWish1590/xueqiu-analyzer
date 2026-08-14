@@ -152,19 +152,12 @@
           <div class="kv"><span>WAF 绕过</span><span class="pill ok">api.xueqiu.com 子域直连</span></div>
 
           <div class="cookie-actions">
-            <div class="import-row">
-              <select id="browserSel" class="sel">
-                <option value="chrome">Chrome</option>
-                <option value="edge">Edge</option>
-              </select>
-              <button class="btn primary" id="btnImportCookie">从浏览器导入 Cookie（推荐·无需插件）</button>
+            <p class="mini">从浏览器登录雪球后，复制 xueqiu.com 的完整 Cookie（含 xq_a_token）粘贴到下方，点「保存 Cookie」即可使用。</p>
+            <textarea id="manualCookie" class="ta" rows="3" placeholder="粘贴 xueqiu.com 的 Cookie，形如：xq_a_token=xxxx; xq_r_token=xxxx; device_id=xxxx"></textarea>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+              <button class="btn primary" id="btnSaveCookie">保存 Cookie</button>
+              <span class="hint" id="cookieHint" style="display:none"></span>
             </div>
-            <div class="hint" id="importHint" style="display:none"></div>
-            <details class="manual-wrap">
-              <summary>或手动粘贴 Cookie</summary>
-              <textarea id="manualCookie" class="ta" rows="3" placeholder="从浏览器复制 xueqiu.com 的 Cookie 字符串，形如：xq_a_token=xxxx; xq_r_token=xxxx; device_id=xxxx"></textarea>
-              <button class="btn" id="btnSaveCookie">保存 Cookie</button>
-            </details>
           </div>
         </div>
         <div class="card">
@@ -227,6 +220,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-<script src="./app.js?v=7"></script>
+<script src="./app.js?v=8"></script>
 </body>
 </html>

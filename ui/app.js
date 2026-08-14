@@ -524,70 +524,35 @@ function renderSettings(){
   const srcEl = document.getElementById('setCookieSource');
   if (srcEl) srcEl.textContent = srcMap[DATA.settings.cookie_source] || DATA.settings.cookie_source || '--';
 
-  // 绑定「从浏览器导入」与「手动粘贴保存」
-  const ib = document.getElementById('btnImportCookie');
-  if (ib && !ib._bound){ ib._bound = true; ib.onclick = importBrowserCookie; }
+  // 绑定「保存 Cookie」（手动粘贴）
   const sb = document.getElementById('btnSaveCookie');
   if (sb && !sb._bound){ sb._bound = true; sb.onclick = saveManualCookie; }
 }
 
-function importBrowserCookie(){
-  const btn = document.getElementById('btnImportCookie');
-  const hint = document.getElementById('importHint');
-  const sel = document.getElementById('browserSel');
-  const browser = sel ? sel.value : 'chrome';
-  if (btn) btn.disabled = true;
-  if (hint){
-    hint.style.display = 'block';
-    hint.className = 'hint';
-    hint.textContent = '正在从 ' + browser + ' 读取已登录的雪球 Cookie…（若浏览器正运行，请先关闭后再试）';
+function saveManualCookie(){
+  const ta = document.getElementById('manualCookie');
+  const hint = document.getElementById('cookieHint');
+  const v = (ta.value || '').trim();
+  if(!v){
+    if (hint){ hint.style.display='block'; hint.className='hint err'; hint.textContent='请先粘贴 Cookie 再保存'; }
+    showToast('请先粘贴 Cookie', 'err');
+    return;
   }
-  // 超时保护：避免“一直转、无任何提示”
-  const controller = ('AbortController' in window) ? new AbortController() : null;
-  const timer = setTimeout(() => { if (controller) controller.abort(); }, 60000);
-  const opts = {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({browser})};
-  if (controller) opts.signal = controller.signal;
-  fetch('/api/import_browser_cookie', opts)
+  fetch('/api/save_cookie', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({cookie:v})})
     .then(r => r.text().then(txt => {
-      let d; try { d = JSON.parse(txt); } catch(e){ throw new Error('服务返回异常内容：' + txt.slice(0,200)); }
+      let d; try { d = JSON.parse(txt); } catch(e){ throw new Error('服务返回异常：' + txt.slice(0,200)); }
       if (!r.ok) throw new Error(d.error || ('HTTP ' + r.status));
       return d;
     }))
     .then(d=>{
-      clearTimeout(timer);
-      if (btn) btn.disabled = false;
-      if(!d.ok){
-        if (hint){ hint.style.display='block'; hint.className='hint err'; hint.textContent = '❌ ' + (d.error || '导入失败'); }
-        showToast(d.error || '导入失败', 'err');
-        return;
-      }
-      if (hint){ hint.style.display='block'; hint.className='hint ok'; hint.textContent = '✅ ' + (d.message || '导入成功'); }
-      setTimeout(()=>{ if(hint) hint.style.display='none'; }, 6000);
-      showToast('已从浏览器导入 Cookie', 'ok');
-      return fetchJSON('/api/settings').then(s=>{ DATA.settings = s; renderSettings(); });
+      if (hint){ hint.style.display='block'; hint.className='hint ok'; hint.textContent='✅ 保存成功'; }
+      showToast('Cookie 保存成功', 'ok');
+      return fetchJSON('/api/settings').then(s=>{ DATA.settings=s; renderSettings(); });
     })
     .catch(e=>{
-      clearTimeout(timer);
-      if (btn) btn.disabled = false;
-      const msg = (e && e.name === 'AbortError')
-        ? '请求超时（60秒无响应）。请确认：① 本地服务已启动（start_server.bat）；② Chrome/Edge 已完全关闭。'
-        : '无法连接本地服务，请确认 server.py 已运行（双击 start_server.bat）。';
-      if (hint){ hint.style.display='block'; hint.className='hint err'; hint.textContent = '❌ ' + msg; }
-      showToast(msg, 'err');
+      if (hint){ hint.style.display='block'; hint.className='hint err'; hint.textContent='❌ 保存失败：' + e.message; }
+      showToast('保存失败: ' + e.message, 'err');
     });
-}
-
-function saveManualCookie(){
-  const ta = document.getElementById('manualCookie');
-  const v = (ta.value || '').trim();
-  if(!v){ showToast('请先粘贴 Cookie', 'err'); return; }
-  fetch('/api/save_cookie', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({cookie:v})})
-    .then(r=>r.json()).then(d=>{
-      if(!d.ok){ showToast(d.error||'保存失败', 'err'); return; }
-      showToast('Cookie 已保存', 'ok');
-      ta.value='';
-      return fetchJSON('/api/settings').then(s=>{ DATA.settings=s; renderSettings(); });
-    }).catch(e=>showToast('保存失败: '+e.message, 'err'));
 }
 
 function bindToggle(id, on){

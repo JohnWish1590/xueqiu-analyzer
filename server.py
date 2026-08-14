@@ -66,8 +66,6 @@ def make_handler(ui_dir):
                 return self._post_worker_stop(raw)
             if path == "/api/save_backfill_days":
                 return self._post_save_backfill_days(raw)
-            if path == "/api/import_browser_cookie":
-                return self._post_import_browser_cookie(raw)
             if path == "/api/save_cookie":
                 return self._post_save_cookie(raw)
             self.send_response(404)
@@ -229,29 +227,6 @@ def make_handler(ui_dir):
                 except Exception:
                     pass
                 self._json({"ok": True, "user": {"id": uid, "name": name}})
-            except Exception as e:
-                self._json_err(500, str(e))
-
-        def _post_import_browser_cookie(self, raw):
-            try:
-                import config
-                import browser_cookie
-                body = json.loads(raw.decode("utf-8")) if raw else {}
-                browser = str(body.get("browser", "chrome")).strip().lower()
-                if browser not in ("chrome", "edge"):
-                    browser = "chrome"
-                cookie, err = browser_cookie.build_xueqiu_cookie(browser)
-                if err:
-                    return self._json_err(400, err)
-                if not cookie:
-                    return self._json_err(400, "未能提取到雪球 cookie（请确认已在 %s 登录雪球）" % browser)
-                s = config.load_settings()
-                s["cookie"] = cookie
-                s["cookie_source"] = "browser"
-                config.save_settings(s)
-                self._json({"ok": True,
-                            "message": "已从 %s 导入雪球登录态（%d 个字段），本页状态已刷新。"
-                                       % (browser, cookie.count("="))})
             except Exception as e:
                 self._json_err(500, str(e))
 
