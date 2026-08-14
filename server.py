@@ -66,6 +66,10 @@ def make_handler(ui_dir):
                 return self._post_worker_stop(raw)
             if path == "/api/save_backfill_days":
                 return self._post_save_backfill_days(raw)
+            if path == "/api/login_xueqiu":
+                return self._post_login_xueqiu(raw)
+            if path == "/api/save_cookie":
+                return self._post_save_cookie(raw)
             self.send_response(404)
             self.end_headers()
             self.wfile.write(b"not found")
@@ -225,6 +229,49 @@ def make_handler(ui_dir):
                 except Exception:
                     pass
                 self._json({"ok": True, "user": {"id": uid, "name": name}})
+            except Exception as e:
+                self._json_err(500, str(e))
+
+        def _post_login_xueqiu(self, raw):
+            try:
+                # 先同步检测 Playwright 是否可用，缺失则立即告知前端（避免盲起线程后无反馈）
+                try:
+                    import importlib
+                    importlib.import_module("playwright")
+                except Exception:
+                    return self._json_err(400,
+                        "未安装 Playwright，无法弹出登录窗。请先执行：\n"
+                        "  pip install playwright\n  playwright install chromium")
+                import threading
+                import cookie_provider
+                def _run():
+                    try:
+                        cookie_provider.launch_login_window()
+                    except Exception as e:
+                        import logging
+                        logging.getLogger("cookie_provider").warning("登录窗失败: %s", e)
+                t = threading.Thread(target=_run, daemon=True)
+                t.start()
+                self._json({"ok": True,
+                            "message": "已在弹出的浏览器中打开雪球登录页，请登录（扫码 / 账号密码）。"
+                                       "登录成功后将自动保存 Cookie，本页状态会自动刷新。"})
+            except Exception as e:
+                self._json_err(500, str(e))
+
+        def _post_save_cookie(self, raw):
+            try:
+                import config
+                body = json.loads(raw.decode("utf-8")) if raw else {}
+                cookie = str(body.get("cookie", "")).strip()
+                if not cookie:
+                    return self._json_err(400, "cookie 不能为空")
+                if "xq_a_token=" not in cookie and "xqat=" not in cookie:
+                    return self._json_err(400, "cookie 格式不正确，需包含 xq_a_token 或 xqat")
+                s = config.load_settings()
+                s["cookie"] = cookie
+                s["cookie_source"] = "manual"
+                config.save_settings(s)
+                self._json({"ok": True, "message": "Cookie 已保存（手动模式）"})
             except Exception as e:
                 self._json_err(500, str(e))
 

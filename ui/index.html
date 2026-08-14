@@ -147,10 +147,19 @@
         <div class="card">
           <h3>② Cookie 鉴权</h3>
           <div class="kv"><span>状态</span><span class="pill ok" id="setCookieStatus">有效</span></div>
-          <div class="kv"><span>来源</span><span>xueqiu-watch-v2 加密库</span></div>
+          <div class="kv"><span>来源</span><span id="setCookieSource">--</span></div>
           <div class="kv"><span>剩余有效期</span><span class="up" id="setCookieExpire">--</span></div>
           <div class="kv"><span>WAF 绕过</span><span class="pill ok">api.xueqiu.com 子域直连</span></div>
-          <button class="btn" style="margin-top:10px">重新导入 Cookie</button>
+
+          <div class="cookie-actions">
+            <button class="btn primary" id="btnLoginXueqiu">登录雪球（推荐·无需装任何插件）</button>
+            <div class="hint" id="loginHint" style="display:none"></div>
+            <details class="manual-wrap">
+              <summary>或手动粘贴 Cookie</summary>
+              <textarea id="manualCookie" class="ta" rows="3" placeholder="从浏览器复制 xueqiu.com 的 Cookie 字符串，形如：xq_a_token=xxxx; xq_r_token=xxxx; device_id=xxxx"></textarea>
+              <button class="btn" id="btnSaveCookie">保存 Cookie</button>
+            </details>
+          </div>
         </div>
         <div class="card">
           <h3>③ AI 模型与密钥</h3>
@@ -212,6 +221,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
-<script src="./app.js?v=3"></script>
+<script src="./app.js?v=4"></script>
 </body>
 </html>

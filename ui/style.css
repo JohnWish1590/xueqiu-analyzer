@@ -180,3 +180,12 @@ table.m td.l{text-align:left}
   box-shadow:0 8px 24px rgba(0,0,0,.18);opacity:1;transition:opacity .25s;pointer-events:none}
 .toast.ok{background:var(--down);color:#fff}
 .toast.err{background:var(--up);color:#fff}
+
+/* ---------- Cookie 录入（一体化，无需插件） ---------- */
+.cookie-actions{margin-top:14px;display:flex;flex-direction:column;gap:10px}
+.cookie-actions .hint{background:var(--brand-soft);border:1px solid #b9d4ff;color:#1f4fb0;
+  padding:9px 12px;border-radius:9px;font-size:12.5px;line-height:1.5}
+.manual-wrap{margin-top:4px;border:1px dashed var(--line);border-radius:9px;padding:8px 12px;background:#fbfcfe}
+.manual-wrap summary{cursor:pointer;font-size:13px;color:var(--ink2);font-weight:600;user-select:none}
+.manual-wrap .ta{width:100%;margin:10px 0;padding:8px 10px;border:1px solid var(--line);border-radius:8px;
+  font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;resize:vertical;background:#fff;color:var(--ink)}

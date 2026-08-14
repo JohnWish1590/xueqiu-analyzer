@@ -518,6 +518,63 @@ function renderSettings(){
   document.getElementById('setCookieStatus').textContent = m.cookie_status === 'valid' ? '有效' : '失效';
   document.getElementById('setCookieStatus').className = 'pill ' + (m.cookie_status === 'valid' ? 'ok' : 'bad');
   document.getElementById('setCookieExpire').textContent = m.cookie_expire + '（剩 ' + daysBetween(m.cookie_expire, '2026-08-13') + ' 天）';
+
+  // Cookie 来源（动态显示，去掉写死的"雪哨加密库"）
+  const srcMap = {login_window:'内置登录窗', manual:'手动粘贴', v2_store:'雪哨加密库(可选)', visitor:'游客(应急)'};
+  const srcEl = document.getElementById('setCookieSource');
+  if (srcEl) srcEl.textContent = srcMap[DATA.settings.cookie_source] || DATA.settings.cookie_source || '--';
+
+  // 绑定「登录雪球」与「手动粘贴保存」
+  const lb = document.getElementById('btnLoginXueqiu');
+  if (lb && !lb._bound){ lb._bound = true; lb.onclick = loginXueqiu; }
+  const sb = document.getElementById('btnSaveCookie');
+  if (sb && !sb._bound){ sb._bound = true; sb.onclick = saveManualCookie; }
+}
+
+function loginXueqiu(){
+  const btn = document.getElementById('btnLoginXueqiu');
+  const hint = document.getElementById('loginHint');
+  btn.disabled = true;
+  fetch('/api/login_xueqiu', {method:'POST'}).then(r=>r.json()).then(d=>{
+    if(!d.ok){
+      btn.disabled = false;
+      showToast(d.error || '启动登录窗失败', 'err');
+      return;
+    }
+    hint.style.display = 'block';
+    hint.textContent = d.message + '（登录窗口会弹在运行本程序的电脑上）';
+    // 轮询 monitor，直到 cookie 有效或超时（180s）
+    const deadline = Date.now() + 180000;
+    const iv = setInterval(()=>{
+      fetchJSON('/api/monitor').then(m=>{
+        if(m.cookie_status === 'valid'){
+          clearInterval(iv);
+          hint.textContent = '✅ 登录成功，Cookie 已保存';
+          setTimeout(()=>{ hint.style.display='none'; }, 3000);
+          btn.disabled = false;
+          return fetchJSON('/api/settings').then(s=>{ DATA.settings = s; renderSettings(); });
+        }
+        if(Date.now() > deadline){
+          clearInterval(iv);
+          hint.textContent = '登录等待超时，请重试或使用下方「手动粘贴 Cookie」';
+          btn.disabled = false;
+        }
+      }).catch(()=>{});
+    }, 2000);
+  }).catch(e=>{ btn.disabled=false; showToast('启动失败: '+e.message, 'err'); });
+}
+
+function saveManualCookie(){
+  const ta = document.getElementById('manualCookie');
+  const v = (ta.value || '').trim();
+  if(!v){ showToast('请先粘贴 Cookie', 'err'); return; }
+  fetch('/api/save_cookie', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({cookie:v})})
+    .then(r=>r.json()).then(d=>{
+      if(!d.ok){ showToast(d.error||'保存失败', 'err'); return; }
+      showToast('Cookie 已保存', 'ok');
+      ta.value='';
+      return fetchJSON('/api/settings').then(s=>{ DATA.settings=s; renderSettings(); });
+    }).catch(e=>showToast('保存失败: '+e.message, 'err'));
 }
 
 function bindToggle(id, on){
