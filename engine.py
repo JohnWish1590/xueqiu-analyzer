@@ -91,6 +91,14 @@ def _date_after(series, d: date, k: int):
     return series[tgt][0]
 
 
+def _index_of(series, d_str):
+    """返回日期字符串 d_str 在 series 中的索引；找不到返回 None。series 为 (date, close, high, low) 升序。"""
+    for i, row in enumerate(series):
+        if row[0] == d_str:
+            return i
+    return None
+
+
 # ---------- 事件重建（三级递进 + β 剥离） ----------
 def rebuild_events(conn=None, as_of: date = None):
     own = conn is None
@@ -167,14 +175,29 @@ def rebuild_events(conn=None, as_of: date = None):
         want_up = stance == "看多"
         hit_7d = 1 if (want_up and excess_7d > 0) or (not want_up and excess_7d < 0) else 0
 
-        # 区间极值（与 ret_7d 同一窗口：ed 起第 7 个交易日）：区间内最高/最低价 → 峰值/谷值收益（相对起点收盘）
+        # 区间极值（与 ret_7d 同一窗口：ed 起第 7 个交易日）：峰值/谷值收益 + 真正的回撤指标
         base_close = _close_at(s_series, ed)
-        win_hi, win_lo = None, None
+        win_hi, win_lo, hi_date, lo_date, limit_days = None, None, None, None, 0
         t7_date = _date_after(s_series, ed, 7)
         if t7_date is not None:
-            win_hi, win_lo = db.get_market_window(stock_code, str(ed), t7_date)
+            win_hi, win_lo, hi_date, lo_date, limit_days = db.get_market_window_detail(stock_code, str(ed), t7_date)
         peak_ret = (win_hi - base_close) / base_close if (win_hi is not None and base_close) else None
         trough_ret = (win_lo - base_close) / base_close if (win_lo is not None and base_close) else None
+
+        # 真正的回撤指标（修正旧口径：trough_ret 只是「相对起点最低」，不是回撤）
+        mdd = None
+        peak_to_close = None
+        drawdown_speed = None
+        if win_hi is not None and win_lo is not None and win_hi:
+            mdd = (win_hi - win_lo) / win_hi                      # 峰值到谷值回撤
+            if rets[7] is not None and base_close:
+                close_t7 = base_close * (1 + rets[7])
+                peak_to_close = (win_hi - close_t7) / win_hi      # 峰值到终点回落
+        if hi_date and lo_date:
+            hi_idx = _index_of(s_series, hi_date)
+            lo_idx = _index_of(s_series, lo_date)
+            if hi_idx is not None and lo_idx is not None:
+                drawdown_speed = lo_idx - hi_idx                  # 正=先见高后见低（冲高回落）
 
         # 过程验证：区间内峰值/谷值方向是否触达观点方向（辅助标记，不替代终点判定）
         if peak_ret is not None and trough_ret is not None:
@@ -195,6 +218,8 @@ def rebuild_events(conn=None, as_of: date = None):
             verified=verified,
             hit_1d=hits[1], hit_3d=hits[3], hit_5d=hits[5], hit_7d=hit_7d, hit_10d=hits[10], hit_20d=hits[20],
             peak_ret=peak_ret, trough_ret=trough_ret, proc_hit=proc_hit,
+            mdd=mdd, peak_to_close=peak_to_close, drawdown_speed=drawdown_speed,
+            limit_down_days=limit_days,
             computed_at=datetime.now().isoformat(timespec="seconds"),
         )
         n_built += 1

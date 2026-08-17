@@ -18,7 +18,7 @@ const STATE = {
 };
 
 const DATA = {
-  pending: [], verified: [], persons: [], predictions: [],
+  pending: [], verified: [], persons: [], predictions: [], evidence: [],
   settings: null, monitor: null,
 };
 
@@ -77,16 +77,21 @@ async function fetchJSON(path){
 
 async function bootstrap(){
   try {
-    [DATA.pending, DATA.verified, DATA.persons, DATA.predictions, DATA.settings, DATA.monitor] =
+    [DATA.pending, DATA.verified, DATA.persons, DATA.predictions, DATA.evidence, DATA.settings, DATA.monitor] =
       await Promise.all([
         fetchJSON('/api/timeline_pending'),
         fetchJSON('/api/timeline_verified'),
         fetchJSON('/api/persons'),
         fetchJSON('/api/predictions'),
+        fetchJSON('/api/evidence_ledger'),
         fetchJSON('/api/settings'),
         fetchJSON('/api/monitor'),
       ]);
-    STATE.refDate = parseDate(DATA.monitor.reference_date || '2026-08-13');
+    // refDate：优先用后端参考日期；但若它早于真实今天(行情表断更导致)，
+    // 则改用真实今天，避免把 8/15-8/16 的帖子算成"未来/负天数"。
+    const backendRef = parseDate(DATA.monitor.reference_date || '2026-08-13');
+    const realNow = new Date();
+    STATE.refDate = (backendRef && backendRef > realNow) ? backendRef : realNow;
   } catch (e) {
     document.querySelector('main').innerHTML =
       '<div class="empty">数据加载失败：' + e.message +
@@ -104,6 +109,7 @@ async function bootstrap(){
   safeRender('状态条', renderStatusbar);
   safeRender('时间线', renderTimeline);
   safeRender('人物', renderPersons);
+  safeRender('证据账本', renderEvidence);
   safeRender('预测', renderPredictions);
   safeRender('设置', renderSettings);   // 保存按钮绑定在此，必须执行
   safeRender('监控', renderMonitor);
@@ -234,6 +240,30 @@ function subjectBlock(p){
   return html + '</div>';
 }
 
+function interpretBlock(interp){
+  if (!interp || !interp.paraphrase) return '';
+  const h = interp.horizon || {};
+  const confTxt = (h.confidence != null && !isNaN(h.confidence)) ? ('置信 ' + Math.round(h.confidence * 100) + '%') : '';
+  let html = '<div class="interpret-block">' +
+    '<div class="i-head"><span class="i-lab">AI 解读</span>' +
+      '<span class="chip">' + esc(interp.basis || '无法判断') + '</span>' +
+      '<span class="chip">' + esc(h.value || '') + (confTxt ? ' · ' + confTxt : '') + '</span></div>' +
+    '<div class="i-para">' + esc(interp.paraphrase) + '</div>';
+  if (interp.sectors && interp.sectors.length) {
+    html += '<div class="i-row"><span class="i-k">板块</span>' +
+      interp.sectors.map(s => '<span class="chip subject">' + esc(s) + '</span>').join('') + '</div>';
+  }
+  if (interp.stocks && interp.stocks.length) {
+    html += '<div class="i-row"><span class="i-k">个股</span>' +
+      interp.stocks.map(s => '<span class="chip">' + esc(s.name || '') + (s.note ? ' · ' + esc(s.note) : '') + '</span>').join('') + '</div>';
+  }
+  if (interp.risks && interp.risks.length) {
+    html += '<div class="i-row"><span class="i-k">风险</span><span class="muted">' +
+      interp.risks.map(r => esc(r)).join('；') + '</span></div>';
+  }
+  return html + '</div>';
+}
+
 function attribGrid(a){
   return '<div class="attrib">' +
     '<div class="attr"><div class="k">大盘β</div><div class="v ' + dirClass(a.index_beta) + '">' + fmtPct(a.index_beta) + '</div></div>' +
@@ -253,6 +283,7 @@ function pendingCard(p){
       '<span class="tm">' + esc(p.created_at) + ' · ' + postTypeLabel(p.post_type) + '</span></div>' +
     '<div class="text">' + esc(p.text) + '</div>' +
     subjectBlock(p) +
+    interpretBlock(p.interpretation) +
     (p.attrib
       ? attribGrid(p.attrib)
       : '<div class="verify muted">β 剥离待验证（窗口未闭合，T+5 后自动计算）</div>') +
@@ -273,6 +304,7 @@ function verifiedCard(p){
       '<span class="tm">' + esc(p.created_at) + '</span></div>' +
     '<div class="text">' + esc(p.text || '') + '</div>' +
     subjectBlock(p) +
+    interpretBlock(p.interpretation) +
     '<div class="attrib">' +
       '<div class="attr"><div class="k">大盘β</div><div class="v ' + dirClass(att.index_beta) + '">' + fmtPct(att.index_beta) + '</div></div>' +
       '<div class="attr"><div class="k">板块α</div><div class="v ' + dirClass(att.sector_alpha) + '">' + fmtPct(att.sector_alpha) + '</div></div>' +
@@ -395,6 +427,7 @@ function paintPerson(uid){
       '</table>' +
       '<p class="mini">方向命中率 = 发言后 N 日该板块/个股实际涨跌方向与观点一致的比例。样本偏小时置信区间宽。</p>' +
     '</div>' +
+    profileCard(p.profile) +
     '<div class="card"><h3>分板块历史胜率 & IC（ECharts）</h3><div id="sectorChart" class="chart"></div></div>' +
     '<div class="card"><h3>' + esc(p.name) + ' · 置信度校准曲线 <span class="chip">已验证样本 N=' + calibN + '</span></h3>' +
       '<p class="mini">横轴=该人预测置信度分箱，纵轴=该置信区间内的实际命中率；贴近对角线 y=x 表示「说几成把握就真有几成准」。样本不足时显示「数据积累中」。</p>' +
@@ -413,6 +446,24 @@ function paintPerson(uid){
   document.getElementById('personMain').innerHTML = html;
   drawSectorChart(p);
   drawPersonCalibration(p);
+}
+
+function profileCard(pr){
+  if (!pr || !pr.evidence_n) {
+    return '<div class="card"><h3>画像 · 证据账本统计</h3>' +
+      '<p class="mini">证据积累中——归档的发言越多，画像越准。当前 0 条证据。</p></div>';
+  }
+  const hd = pr.horizon_detail || {};
+  const hdHtml = Object.keys(hd).map(k =>
+    '<span class="chip">' + esc(k) + ' ' + hd[k].n + '条 / ' + hd[k].hit_rate + '%</span>'
+  ).join('') || '<span class="muted">--</span>';
+  return '<div class="card"><h3>画像 · 证据账本统计 <span class="chip">证据 ' + pr.evidence_n + ' 条</span></h3>' +
+    '<div class="i-row"><span class="i-k">典型兑现窗口</span><b>' + esc(pr.dominant_horizon || '--') + '</b></div>' +
+    '<div class="i-row"><span class="i-k">基准倾向</span><span class="chip">' + esc(pr.relative_or_absolute || '--') + '</span></div>' +
+    '<div class="i-row"><span class="i-k">看多命中</span><span>' + (pr.bull_hit_rate != null ? pr.bull_hit_rate + '%' : '--') + '</span></div>' +
+    '<div class="i-row"><span class="i-k">看空命中</span><span>' + (pr.bear_hit_rate != null ? pr.bear_hit_rate + '%' : '--') + '</span></div>' +
+    '<div class="i-row"><span class="i-k">各尺度</span><span>' + hdHtml + '</span></div>' +
+    '<p class="mini">由证据账本自动统计，不靠印象。AI 只给证据，方向对错由你人工打标签沉淀。</p></div>';
 }
 
 function drawSectorChart(p){
@@ -440,6 +491,79 @@ function drawSectorChart(p){
     ],
   });
   chart.resize();
+}
+
+/* ===================== 证据账本 ===================== */
+function renderEvidence(){
+  const list = document.getElementById('evidenceList');
+  const btnArchive = document.getElementById('btnArchiveEvidence');
+  const btnBackfill = document.getElementById('btnBackfillInterpretation');
+  if (btnArchive && !btnArchive._bound){ btnArchive._bound = true; btnArchive.onclick = archiveEvidence; }
+  if (btnBackfill && !btnBackfill._bound){ btnBackfill._bound = true; btnBackfill.onclick = backfillInterpretation; }
+  if (!DATA.evidence.length) {
+    list.innerHTML = '<div class="empty">暂无归档证据。点「归档已验证发言」生成，或先「补解读存量发言」。</div>';
+    return;
+  }
+  list.innerHTML = DATA.evidence.map(evidenceCard).join('');
+  list.querySelectorAll('[data-tag]').forEach(el => {
+    el.onclick = () => tagEvidence(el.dataset.pid, el.dataset.tag);
+  });
+}
+
+function evidenceCard(e){
+  const interp = e.interpretation || {};
+  const hitCls = e.hit ? 'long' : 'short';
+  const tag = e.manual_tag || '';
+  const tagBtns = ['对', '错', '部分对', '存疑'].map(t =>
+    '<button class="btn' + (tag === t ? ' primary' : '') + '" data-pid="' + esc(e.pid) + '" data-tag="' + t + '" style="padding:2px 10px;font-size:12px">' + t + '</button>'
+  ).join('');
+  return '<div class="pcard">' +
+    '<div class="top"><div class="avatar" style="background:' + avatarStyle(e.user_name) + '">' + avatarChar(e.user_name) + '</div>' +
+      '<div class="nm">' + esc(e.user_name) + '</div>' +
+      '<span class="chip subject">' + esc(e.stance) + '</span>' +
+      '<span class="chip">' + esc(e.horizon) + ' · T+' + e.expected_window_days + '</span>' +
+      '<span class="tm">' + esc(e.created_at) + '</span></div>' +
+    interpretBlock(interp) +
+    '<div class="attrib">' +
+      '<div class="attr"><div class="k">超额收益</div><div class="v ' + dirClass(e.excess_ret) + '">' + fmtPct(e.excess_ret) + '</div></div>' +
+      '<div class="attr"><div class="k">实际收益</div><div class="v ' + dirClass(e.actual_ret) + '">' + fmtPct(e.actual_ret) + '</div></div>' +
+      '<div class="attr"><div class="k">最大回撤</div><div class="v down">' + (e.mdd != null ? '-' + e.mdd + '%' : '--') + '</div></div>' +
+      '<div class="attr"><div class="k">跌停天数</div><div class="v">' + (e.limit_down_days || 0) + '</div></div>' +
+    '</div>' +
+    '<div class="verify"><span class="seg ' + hitCls + '">' + (e.hit ? '超额方向命中' : '超额未命中') + '</span>' +
+      '<span class="muted">回撤速度 ' + (e.drawdown_speed != null ? e.drawdown_speed + ' 日' : '--') + '（正=冲高回落）</span>' +
+      '<span style="margin-left:auto;display:flex;gap:6px">' + tagBtns + '</span></div>' +
+    '</div>';
+}
+
+function archiveEvidence(){
+  const hint = document.getElementById('evidenceHint');
+  if (hint){ hint.style.display = 'inline'; hint.className = 'hint'; hint.textContent = '归档中…'; }
+  fetch('/api/archive_evidence', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then(r => r.json()).then(d => {
+      if (hint){ hint.className = 'hint ok'; hint.textContent = '归档完成：' + (d.archived || 0) + ' 条'; }
+      setTimeout(reloadEvidence, 600);
+    }).catch(e => { if (hint){ hint.className = 'hint err'; hint.textContent = '归档失败：' + e.message; } });
+}
+
+function backfillInterpretation(){
+  const hint = document.getElementById('evidenceHint');
+  if (hint){ hint.style.display = 'inline'; hint.className = 'hint'; hint.textContent = '补解读已启动（后台进行，完成后刷新可见）'; }
+  fetch('/api/backfill_interpretation', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then(r => r.json()).then(d => {
+      if (hint){ hint.className = 'hint ok'; hint.textContent = d.message || '已启动'; }
+    }).catch(e => { if (hint){ hint.className = 'hint err'; hint.textContent = '失败：' + e.message; } });
+}
+
+function tagEvidence(pid, tag){
+  fetch('/api/tag_evidence', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pid: pid, tag: tag }),
+  }).then(r => r.json()).then(d => { if (d.ok) reloadEvidence(); });
+}
+
+function reloadEvidence(){
+  fetchJSON('/api/evidence_ledger').then(d => { DATA.evidence = d; renderEvidence(); }).catch(() => {});
 }
 
 /* ===================== 3. 预测中心 ===================== */

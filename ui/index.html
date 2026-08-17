@@ -3,8 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>雪球大V观点印证分析 · 前端骨架</title>
-<link rel="stylesheet" href="./style.css">
+<link rel="stylesheet" href="./style.css?v=21">
 </head>
 <body>
 
@@ -32,6 +35,7 @@
     <div class="grp">分析视图</div>
     <a data-view="timeline" class="active"><span class="ic">🗓️</span>时间线<span class="badge" id="navPending">0</span></a>
     <a data-view="person"><span class="ic">👤</span>人物分析</a>
+    <a data-view="evidence"><span class="ic">📚</span>证据账本</a>
     <a data-view="predict"><span class="ic">🔮</span>预测中心<span class="badge brand">NEW</span></a>
     <div class="grp">配置</div>
     <a data-view="settings"><span class="ic">⚙️</span>设置</a>
@@ -69,7 +73,19 @@
       </div>
     </section>
 
-    <!-- ========== 3. 预测中心 ========== -->
+    <!-- ========== 3. 证据账本 ========== -->
+    <section id="evidence" class="view">
+      <h2 class="vtitle">证据账本</h2>
+      <p class="vsub">发言 + AI 解读 + 实际走势对比的归档。AI 只给证据、不判对错，判断由你打标签（对 / 错 / 部分对 / 存疑）。</p>
+      <div class="row" style="align-items:center;margin-bottom:12px">
+        <button class="btn primary" id="btnArchiveEvidence">归档已验证发言</button>
+        <button class="btn" id="btnBackfillInterpretation">补解读存量发言</button>
+        <span class="hint" id="evidenceHint" style="display:none"></span>
+      </div>
+      <div id="evidenceList"></div>
+    </section>
+
+    <!-- ========== 4. 预测中心 ========== -->
     <section id="predict" class="view">
       <h2 class="vtitle">预测中心 · 核心能力</h2>
       <p class="vsub">抓到大V发言后自动预测个股/板块走向，挂上该人历史命中胜率与擅长板块，给出「跟随/观望/反向」信号标签与预测校准曲线。</p>
@@ -231,6 +247,6 @@
 </div>
 
 <script src="./echarts.min.js" onerror="(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js';document.head.appendChild(s);})()"></script>
-<script src="./app.js?v=20"></script>
+<script src="./app.js?v=21"></script>
 </body>
 </html>

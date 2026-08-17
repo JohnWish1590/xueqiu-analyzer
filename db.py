@@ -76,7 +76,10 @@ def init_db() -> None:
             contrast_stocks TEXT,      -- JSON: 对比/衬托标的（仅展示，不进回测）
             sectors TEXT,              -- JSON: 主体涉及板块
             analyzed_at TEXT,
-            model TEXT
+            model TEXT,
+            interpretation TEXT,      -- JSON: AI 人话解读（paraphrase/板块/个股/相对绝对/尺度/风险提示）
+            interpreted_at TEXT,
+            interpretation_model TEXT
         );
 
         CREATE TABLE IF NOT EXISTS market_daily (
@@ -107,6 +110,10 @@ def init_db() -> None:
             peak_ret REAL,         -- 区间内最高价相对起点收益（峰值）
             trough_ret REAL,       -- 区间内最低价相对起点收益（谷值）
             proc_hit INTEGER,      -- 过程验证：区间内峰值/谷值方向是否触达观点方向
+            mdd REAL,              -- 区间最大回撤（峰值到谷值）= (win_hi-win_lo)/win_hi
+            peak_to_close REAL,    -- 峰值到终点收盘的回落幅度 = (win_hi-close_t7)/win_hi
+            drawdown_speed REAL,   -- 回撤速度：峰到谷的交易日数（正=先见高后见低）
+            limit_down_days INTEGER, -- 区间内触及跌停（近似）天数
             computed_at TEXT
         );
 
@@ -146,6 +153,26 @@ def init_db() -> None:
             computed_at TEXT,
             PRIMARY KEY (user_xid, sector)
         );
+
+        CREATE TABLE IF NOT EXISTS evidence_ledger (
+            pid TEXT PRIMARY KEY,
+            user_xid TEXT,
+            created_at TEXT,
+            stance TEXT,               -- 看多/看空
+            horizon TEXT,              -- 解读出的时间尺度（短线/中线/长线/观察）
+            expected_window_days INTEGER, -- 预期兑现窗口（映射：短线3/中线7/长线20）
+            interpretation_snapshot TEXT, -- JSON: 归档时的解读快照
+            actual_ret REAL,           -- 实际窗口收益（相对起点收盘）
+            idx_ret REAL,              -- 基准同期收益
+            excess_ret REAL,           -- 超额收益（剥离 Beta）
+            hit INTEGER,               -- 方向是否命中（超额方向 vs 观点）
+            mdd REAL,                  -- 区间最大回撤（峰值到谷值）
+            peak_to_close REAL,        -- 峰值到终点回落
+            drawdown_speed REAL,       -- 回撤速度（峰到谷交易日数）
+            limit_down_days INTEGER,   -- 区间内跌停（近似）天数
+            manual_tag TEXT,           -- 人工标签（空=待标）：对/错/部分对/存疑
+            archived_at TEXT
+        );
         """
     )
     # 兼容已存在库：补齐新列（初次建表已含，此处幂等）
@@ -158,6 +185,13 @@ def init_db() -> None:
         "ALTER TABLE events ADD COLUMN peak_ret REAL",
         "ALTER TABLE events ADD COLUMN trough_ret REAL",
         "ALTER TABLE events ADD COLUMN proc_hit INTEGER",
+        "ALTER TABLE events ADD COLUMN mdd REAL",
+        "ALTER TABLE events ADD COLUMN peak_to_close REAL",
+        "ALTER TABLE events ADD COLUMN drawdown_speed REAL",
+        "ALTER TABLE events ADD COLUMN limit_down_days INTEGER",
+        "ALTER TABLE posts ADD COLUMN interpretation TEXT",
+        "ALTER TABLE posts ADD COLUMN interpreted_at TEXT",
+        "ALTER TABLE posts ADD COLUMN interpretation_model TEXT",
     ):
         try:
             conn.execute(stmt)
@@ -183,13 +217,15 @@ def upsert_post(**kw):
     conn = get_conn()
     conn.execute(
         "INSERT INTO posts(pid,user_xid,text,created_at,post_type,stance,horizon,sentiment,summary,"
-        "subject_stocks,contrast_stocks,sectors,analyzed_at,model) "
+        "subject_stocks,contrast_stocks,sectors,analyzed_at,model,interpretation,interpreted_at,interpretation_model) "
         "VALUES(:pid,:user_xid,:text,:created_at,:post_type,:stance,:horizon,:sentiment,:summary,"
-        ":subject_stocks,:contrast_stocks,:sectors,:analyzed_at,:model) "
+        ":subject_stocks,:contrast_stocks,:sectors,:analyzed_at,:model,:interpretation,:interpreted_at,:interpretation_model) "
         "ON CONFLICT(pid) DO UPDATE SET post_type=excluded.post_type,stance=excluded.stance,"
         "horizon=excluded.horizon,sentiment=excluded.sentiment,summary=excluded.summary,"
         "subject_stocks=excluded.subject_stocks,contrast_stocks=excluded.contrast_stocks,"
-        "sectors=excluded.sectors,analyzed_at=excluded.analyzed_at,model=excluded.model",
+        "sectors=excluded.sectors,analyzed_at=excluded.analyzed_at,model=excluded.model,"
+        "interpretation=excluded.interpretation,interpreted_at=excluded.interpreted_at,"
+        "interpretation_model=excluded.interpretation_model",
         kw,
     )
     conn.commit()
@@ -216,11 +252,11 @@ def upsert_event(**kw):
         "INSERT INTO events(pid,user_xid,created_at,stance,stock_code,sector_code,idx_code,"
         "ret_1d,ret_3d,ret_5d,ret_7d,ret_10d,ret_20d,idx_ret_1d,idx_ret_3d,idx_ret_5d,idx_ret_7d,idx_ret_10d,idx_ret_20d,"
         "sector_alpha_3d,stock_alpha_3d,verified,hit_1d,hit_3d,hit_5d,hit_7d,hit_10d,hit_20d,"
-        "peak_ret,trough_ret,proc_hit,computed_at) "
+        "peak_ret,trough_ret,proc_hit,mdd,peak_to_close,drawdown_speed,limit_down_days,computed_at) "
         "VALUES(:pid,:user_xid,:created_at,:stance,:stock_code,:sector_code,:idx_code,"
         ":ret_1d,:ret_3d,:ret_5d,:ret_7d,:ret_10d,:ret_20d,:idx_ret_1d,:idx_ret_3d,:idx_ret_5d,:idx_ret_7d,:idx_ret_10d,:idx_ret_20d,"
         ":sector_alpha_3d,:stock_alpha_3d,:verified,:hit_1d,:hit_3d,:hit_5d,:hit_7d,:hit_10d,:hit_20d,"
-        ":peak_ret,:trough_ret,:proc_hit,:computed_at) "
+        ":peak_ret,:trough_ret,:proc_hit,:mdd,:peak_to_close,:drawdown_speed,:limit_down_days,:computed_at) "
         "ON CONFLICT(pid) DO UPDATE SET ret_1d=excluded.ret_1d,ret_3d=excluded.ret_3d,ret_5d=excluded.ret_5d,"
         "ret_7d=excluded.ret_7d,ret_10d=excluded.ret_10d,ret_20d=excluded.ret_20d,"
         "idx_ret_1d=excluded.idx_ret_1d,idx_ret_3d=excluded.idx_ret_3d,idx_ret_5d=excluded.idx_ret_5d,"
@@ -228,7 +264,9 @@ def upsert_event(**kw):
         "sector_alpha_3d=excluded.sector_alpha_3d,stock_alpha_3d=excluded.stock_alpha_3d,verified=excluded.verified,"
         "hit_1d=excluded.hit_1d,hit_3d=excluded.hit_3d,hit_5d=excluded.hit_5d,hit_7d=excluded.hit_7d,"
         "hit_10d=excluded.hit_10d,hit_20d=excluded.hit_20d,peak_ret=excluded.peak_ret,trough_ret=excluded.trough_ret,"
-        "proc_hit=excluded.proc_hit,computed_at=excluded.computed_at",
+        "proc_hit=excluded.proc_hit,mdd=excluded.mdd,peak_to_close=excluded.peak_to_close,"
+        "drawdown_speed=excluded.drawdown_speed,limit_down_days=excluded.limit_down_days,"
+        "computed_at=excluded.computed_at",
         kw,
     )
     conn.commit()
@@ -273,6 +311,28 @@ def upsert_backtest_sector(rows):
         "ON CONFLICT(user_xid,sector) DO UPDATE SET n=excluded.n,hit_rate=excluded.hit_rate,"
         "avg_ret=excluded.avg_ret,computed_at=excluded.computed_at",
         rows,
+    )
+    conn.commit()
+    conn.close()
+
+
+def upsert_evidence(**kw):
+    """写入/更新证据账本一行。manual_tag 传 None/空时保留已有人工标签（不覆盖）。"""
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO evidence_ledger(pid,user_xid,created_at,stance,horizon,expected_window_days,"
+        "interpretation_snapshot,actual_ret,idx_ret,excess_ret,hit,mdd,peak_to_close,"
+        "drawdown_speed,limit_down_days,manual_tag,archived_at) "
+        "VALUES(:pid,:user_xid,:created_at,:stance,:horizon,:expected_window_days,"
+        ":interpretation_snapshot,:actual_ret,:idx_ret,:excess_ret,:hit,:mdd,:peak_to_close,"
+        ":drawdown_speed,:limit_down_days,:manual_tag,:archived_at) "
+        "ON CONFLICT(pid) DO UPDATE SET stance=excluded.stance,horizon=excluded.horizon,"
+        "expected_window_days=excluded.expected_window_days,interpretation_snapshot=excluded.interpretation_snapshot,"
+        "actual_ret=excluded.actual_ret,idx_ret=excluded.idx_ret,excess_ret=excluded.excess_ret,"
+        "hit=excluded.hit,mdd=excluded.mdd,peak_to_close=excluded.peak_to_close,"
+        "drawdown_speed=excluded.drawdown_speed,limit_down_days=excluded.limit_down_days,"
+        "manual_tag=COALESCE(excluded.manual_tag,evidence_ledger.manual_tag),archived_at=excluded.archived_at",
+        kw,
     )
     conn.commit()
     conn.close()
@@ -352,6 +412,31 @@ def get_backtest_sector(user_xid):
     return [dict(r) for r in rows]
 
 
+def get_evidence_ledger(user_xid=None, only_untagged=False):
+    """证据账本：发言 + 解读 + 实际走势对比。only_untagged 只返回待人工打标签的。"""
+    conn = get_conn()
+    if user_xid:
+        sql = "SELECT * FROM evidence_ledger WHERE user_xid=? "
+        args = [user_xid]
+    else:
+        sql = "SELECT * FROM evidence_ledger WHERE 1=1 "
+        args = []
+    if only_untagged:
+        sql += "AND (manual_tag IS NULL OR manual_tag='') "
+    sql += "ORDER BY created_at DESC"
+    rows = conn.execute(sql, args).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def set_evidence_tag(pid, tag):
+    """人工给证据账本打标签（对/错/部分对/存疑）。"""
+    conn = get_conn()
+    conn.execute("UPDATE evidence_ledger SET manual_tag=? WHERE pid=?", (tag, pid))
+    conn.commit()
+    conn.close()
+
+
 def get_market_series(code):
     """返回按日期升序的 (date, close, high, low) 列表；high/low 可能为空（旧数据）。"""
     conn = get_conn()
@@ -377,6 +462,35 @@ def get_market_window(code, start_date, end_date):
     hi = max(r["high"] for r in rows)
     lo = min(r["low"] for r in rows)
     return hi, lo
+
+
+def get_market_window_detail(code, start_date, end_date):
+    """返回区间极值的完整信息 (win_hi, win_lo, hi_date, lo_date, limit_down_days)。
+
+    limit_down_days = 区间内相对前一交易日收盘跌幅 <= -9.5% 的天数（跌停近似，不区分主板/创业板）。
+    hi_date/lo_date 用于算回撤速度（峰到谷的先后与交易日数）。
+    """
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT date, close, high, low FROM market_daily WHERE code=? AND date>=? AND date<=? "
+        "AND high IS NOT NULL AND low IS NOT NULL ORDER BY date",
+        (code, start_date, end_date),
+    ).fetchall()
+    conn.close()
+    if not rows:
+        return None, None, None, None, 0
+    win_hi = max(r["high"] for r in rows)
+    win_lo = min(r["low"] for r in rows)
+    hi_date = next(r["date"] for r in rows if r["high"] == win_hi)
+    lo_date = next(r["date"] for r in rows if r["low"] == win_lo)
+    limit_days = 0
+    prev_close = None
+    for r in rows:
+        if prev_close is not None and r["close"] is not None and prev_close:
+            if (r["close"] - prev_close) / prev_close <= -0.095:
+                limit_days += 1
+        prev_close = r["close"]
+    return win_hi, win_lo, hi_date, lo_date, limit_days
 
 
 def get_market_name(code):

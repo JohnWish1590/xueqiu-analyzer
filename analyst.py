@@ -505,6 +505,190 @@ def analyze_batch(texts, **kw):
     return [analyze_post(t, **kw) for t in (texts or [])]
 
 
+# ============================================================================
+# 6) 人话解读层 interpret_post（与结构化 analyze_post 并列，不替换）
+#    —— 把发言翻译成"这句话什么意思 / 指什么板块 / 点的个股 / 相对还是绝对 /
+#       时间尺度 / 客观风险提示"。只做理解，不给操作建议（跟/反/观望留给证据账本）。
+# ============================================================================
+_INTERPRET_PROMPT = (
+    "你是一名资深卖方分析师，负责把雪球大V的发言用大白话解读给普通投资者，"
+    "帮他们快速看懂「这句话到底在说什么」。\n"
+    "请只输出一个 JSON 对象，不要任何解释或 Markdown 围栏。JSON 字段严格如下：\n"
+    "{\n"
+    '  "paraphrase": "一句话人话翻译：他在表达什么观点、对什么标的、什么方向（不超过60字）",\n'
+    '  "sectors": ["他指涉的板块/行业（中文，语义理解，非关键词堆砌）"],\n'
+    '  "stocks": [{"name":"提到的个股中文名","code":"股票代码或空串","note":"他对这只票的具体看法（一句话）"}],\n'
+    '  "basis": "这句话的基准，取：相对大盘 | 绝对收益 | 风格板块轮动 | 无法判断",\n'
+    '  "horizon": {"value":"短线|中线|长线|观察","confidence":0.0到1.0,"reason":"判断时间尺度的依据（一句话）"},\n'
+    '  "risks": ["客观风险/不确定性提示（如：未提目标价 / 未给止损 / 依据不足），不给买卖建议"]\n'
+    "}\n"
+    "规则：\n"
+    "1) 只做「理解」和「客观提示」，绝不输出「建议买入/卖出/跟随/反向」等操作指令。\n"
+    "2) basis 判断他在说绝对涨跌还是相对强弱（例：说「芯片涨但大盘跌」通常是相对/风格判断）。\n"
+    "3) horizon 结合用词：「短期/反弹/超跌」→短线；「趋势/主线/布局」→中线；「周期/时代/长期」→长线。\n"
+    "4) risks 只列客观不确定性，不做方向判断。\n"
+    "5) 无法判断的字段给保守默认（basis=无法判断，confidence 取低值）。\n"
+)
+
+
+def _llm_interpret(text, base_result, user_name="", provider=None, api_key=None, model=None):
+    """调用 LLM 生成人话解读。任何异常返回 None（交由 heuristic 降级）。"""
+    try:
+        import requests
+
+        settings = config.load_settings()
+        if provider is None:
+            provider = settings.get("provider") or config.DEFAULT_PROVIDER
+        if api_key is None:
+            api_key = settings.get("api_key", "")
+        if not api_key:
+            return None
+        prov = config.MODEL_PROVIDERS.get(provider)
+        if not prov:
+            return None
+        base = prov["base"]
+        if model is None:
+            model = settings.get("model", "")
+        if not model:
+            model = prov["model"]
+
+        subj = base_result.get("subject") or {}
+        hint = (
+            f"（辅助参考，已结构化识别：stance={base_result.get('stance')}, "
+            f"horizon={base_result.get('horizon')}, subject={subj.get('name','')}, "
+            f"summary={base_result.get('summary','')}）"
+        )
+        payload = {
+            "model": model,
+            "messages": [
+                {"role": "system", "content": _INTERPRET_PROMPT},
+                {"role": "user", "content": f"发言内容：\n{text}\n\n{hint}"},
+            ],
+            "temperature": 0.3,
+            "response_format": {"type": "json_object"},
+        }
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+        resp = requests.post(
+            f"{base}/chat/completions",
+            headers=headers, json=payload, timeout=40,
+        )
+        resp.raise_for_status()
+        content = resp.json()["choices"][0]["message"]["content"]
+        obj = _extract_json(content)
+        if not obj:
+            return None
+        return _normalize_interpret(obj, model)
+    except Exception:
+        return None
+
+
+def _normalize_interpret(obj, model):
+    """把 LLM 解读规整为严格结构；缺字段给保守默认。"""
+    def _s(v):
+        return str(v or "").strip()
+
+    horizon = obj.get("horizon") or {}
+    if not isinstance(horizon, dict):
+        horizon = {}
+    hv = horizon.get("value")
+    if hv not in VALID_HORIZON:
+        hv = "观察"
+    try:
+        conf = float(horizon.get("confidence", 0.5))
+    except (TypeError, ValueError):
+        conf = 0.5
+    conf = max(0.0, min(1.0, conf))
+
+    sectors = obj.get("sectors") or []
+    if not isinstance(sectors, list):
+        sectors = [str(sectors)]
+    sectors = [_s(s) for s in sectors if _s(s)]
+
+    stocks = obj.get("stocks") or []
+    if not isinstance(stocks, list):
+        stocks = []
+    stocks_norm = []
+    for it in stocks:
+        if isinstance(it, dict) and (_s(it.get("name"))):
+            stocks_norm.append({
+                "name": _s(it.get("name")),
+                "code": _s(it.get("code")),
+                "note": _s(it.get("note")),
+            })
+
+    basis = obj.get("basis")
+    if basis not in ("相对大盘", "绝对收益", "风格板块轮动", "无法判断"):
+        basis = "无法判断"
+
+    risks = obj.get("risks") or []
+    if not isinstance(risks, list):
+        risks = [str(risks)]
+    risks = [_s(r) for r in risks if _s(r)]
+
+    return {
+        "paraphrase": _s(obj.get("paraphrase")),
+        "sectors": sectors,
+        "stocks": stocks_norm,
+        "basis": basis,
+        "horizon": {"value": hv, "confidence": round(conf, 2), "reason": _s(horizon.get("reason"))},
+        "risks": risks,
+        "model": model,
+    }
+
+
+def heuristic_interpret(text, base_result):
+    """离线兜底解读：基于结构化结果拼一段简短的人话解读，不做深层语义理解。"""
+    subj = base_result.get("subject") or {}
+    stance = base_result.get("stance", "中性")
+    horizon = base_result.get("horizon", "中线")
+    sectors = base_result.get("sectors") or []
+    contrast = base_result.get("contrast") or []
+
+    parts = []
+    if subj.get("name"):
+        parts.append(f"对{subj['name']}持{stance}观点")
+    else:
+        parts.append(f"表达{stance}观点")
+    if sectors:
+        parts.append("涉及板块：" + "、".join(sectors[:3]))
+    if contrast:
+        parts.append("同时提及对比标的：" + "、".join(c["name"] for c in contrast[:3]))
+    paraphrase = "；".join(parts) + "。"
+
+    stocks = []
+    if subj.get("name"):
+        stocks.append({"name": subj.get("name", ""), "code": subj.get("code", ""),
+                       "note": stance})
+
+    return {
+        "paraphrase": paraphrase,
+        "sectors": list(sectors),
+        "stocks": stocks,
+        "basis": "无法判断",
+        "horizon": {"value": horizon, "confidence": 0.5, "reason": "离线兜底，按关键词/默认"},
+        "risks": ["离线兜底解读，未做深层语义理解"],
+        "model": "heuristic",
+    }
+
+
+def interpret_post(text, base_result=None, user_name="", provider=None, api_key=None, model=None):
+    """解读一条发言（人话解读），返回 dict（存 posts.interpretation 的 JSON）。
+
+    流程：LLM 解读 → 失败/无 key 时 heuristic_interpret 降级。
+    base_result 建议由调用方传入（避免重复做结构化），为 None 时用启发式兜底。
+    任何异常都静默降级，绝不抛错。
+    """
+    if base_result is None:
+        base_result = heuristic_analyze(text, user_name)
+    interp = _llm_interpret(text, base_result, user_name, provider, api_key, model)
+    if interp is None:
+        interp = heuristic_interpret(text, base_result)
+    return interp
+
+
 if __name__ == "__main__":
     import sys
     sample = sys.argv[1] if len(sys.argv) > 1 else "中芯国际涨得真好，对比消费电子太差了"

@@ -157,11 +157,15 @@ def _now():
 
 # --------------------------------------------------------------------------
 def _store_post(p, user_xid, user_name):
-    """分析并入库单条帖子；已存在则跳过。返回 True 表示新增。"""
+    """分析并入库单条帖子；已存在则跳过。返回 True 表示新增。
+
+    结构化（stance/horizon/summary/主体）+ 人话解读（interpretation）一起做并入库。
+    """
     if db.get_post(p["id"]):
         return False
     res = analyst.analyze_post(p["text"], user_name=user_name)
     subj = res.get("subject")
+    interp = analyst.interpret_post(p["text"], res, user_name=user_name)
     db.upsert_post(
         pid=p["id"], user_xid=user_xid, text=p["text"], created_at=p["created_at"],
         post_type=p["post_type"], stance=res["stance"], horizon=res["horizon"],
@@ -170,10 +174,56 @@ def _store_post(p, user_xid, user_name):
         contrast_stocks=json.dumps(res.get("contrast") or [], ensure_ascii=False),
         sectors=json.dumps(res.get("sectors") or [], ensure_ascii=False),
         analyzed_at=_now(), model=res.get("model"),
+        interpretation=json.dumps(interp, ensure_ascii=False),
+        interpreted_at=_now(), interpretation_model=interp.get("model"),
     )
     log.info("新增发言 %s @%s stance=%s subject=%s", p["id"], user_name,
              res["stance"], (subj or {}).get("name"))
     return True
+
+
+def backfill_interpretations(limit=None):
+    """给存量发言（有看多/看空观点、且尚无解读）批量补人话解读。返回补了多少条。
+
+    逐条调用 analyst.interpret_post（复用已入库的结构化结果作 base，不再重复 LLM 结构化）。
+    """
+    conn = db.get_conn()
+    rows = conn.execute(
+        "SELECT * FROM posts WHERE stance IN ('看多','看空') "
+        "AND (interpretation IS NULL OR interpretation='') ORDER BY created_at"
+    ).fetchall()
+    conn.close()
+    rows = [dict(r) for r in rows]
+    if limit:
+        rows = rows[:int(limit)]
+    n = 0
+    for p in rows:
+        try:
+            try:
+                subj = json.loads(p["subject_stocks"] or "[]")
+                base = {
+                    "stance": p["stance"], "horizon": p["horizon"], "summary": p["summary"],
+                    "subject": (subj[0] if subj else None),
+                    "contrast": json.loads(p["contrast_stocks"] or "[]"),
+                    "sectors": json.loads(p["sectors"] or "[]"),
+                }
+            except Exception:
+                base = None
+            interp = analyst.interpret_post(p["text"], base, user_name="")
+            db.upsert_post(
+                pid=p["pid"], user_xid=p["user_xid"], text=p["text"], created_at=p["created_at"],
+                post_type=p["post_type"], stance=p["stance"], horizon=p["horizon"],
+                sentiment=p["sentiment"], summary=p["summary"],
+                subject_stocks=p["subject_stocks"], contrast_stocks=p["contrast_stocks"],
+                sectors=p["sectors"], analyzed_at=p["analyzed_at"], model=p["model"],
+                interpretation=json.dumps(interp, ensure_ascii=False),
+                interpreted_at=_now(), interpretation_model=interp.get("model"),
+            )
+            n += 1
+        except Exception as e:
+            log.warning("补解读失败 pid=%s: %s", p["pid"], e)
+    log.info("存量补解读完成：%d 条", n)
+    return n
 
 
 def _collect_market_targets(posts):

@@ -4,6 +4,7 @@
 """
 import json
 import functools
+from collections import Counter, defaultdict
 from datetime import datetime, date, timedelta
 import db
 import config
@@ -13,7 +14,13 @@ import engine
 
 def _as_of():
     ds = db.get_trading_dates()
-    return ds[-1] if ds else date.today().isoformat()
+    today = date.today().isoformat()
+    if not ds:
+        return today
+    last = ds[-1]
+    # 行情表最后交易日若早于真实今天，说明行情源断更/未补，
+    # 直接用真实今天作基准，避免全站时间基准(参考日期/验证窗口/待验证列表)卡死在旧日期。
+    return last if last >= today else today
 
 
 def _followed_ids():
@@ -98,6 +105,15 @@ def _contrast_of(post):
     return [{"name": c.get("name"), "code": c.get("code"), "note": c.get("note", "仅展示不进回测")} for c in cs]
 
 
+def _interpretation_of(post):
+    """解析 posts.interpretation 的 JSON（人话解读），失败返回 None。"""
+    try:
+        obj = json.loads(post.get("interpretation") or "null")
+        return obj if isinstance(obj, dict) else None
+    except Exception:
+        return None
+
+
 def build_timeline_pending():
     """待验证时间线：包含所有已启用跟踪用户的已抓取记录。
 
@@ -120,6 +136,7 @@ def build_timeline_pending():
             "post_id": p["pid"], "user_name": _uname(p["user_xid"]), "user_id": p["user_xid"],
             "created_at": p["created_at"], "text": p["text"], "post_type": p["post_type"],
             "subject": subj, "contrast": _contrast_of(p), "summary": p.get("summary"),
+            "interpretation": _interpretation_of(p),
             "attrib": None, "hist_hit_rate": hr or 0, "hist_n": n,
         })
     return out
@@ -162,11 +179,16 @@ def build_timeline_verified():
             "peak_ret": _pct(e["peak_ret"]),        # 区间内最高价收益（相对起点收盘）
             "trough_ret": _pct(e["trough_ret"]),    # 区间内最低价收益
             "proc_hit": bool(e["proc_hit"]),        # 过程验证：区间内是否触达观点方向
+            "mdd": _pct(e.get("mdd")),              # 区间最大回撤（峰值到谷值）
+            "peak_to_close": _pct(e.get("peak_to_close")),  # 峰值到终点回落
+            "drawdown_speed": e.get("drawdown_speed"),  # 回撤速度（正=冲高回落）
+            "limit_down_days": e.get("limit_down_days"),  # 区间内跌停近似天数
         }
         out.append({
             "post_id": p["pid"], "user_name": _uname(p["user_xid"]), "user_id": p["user_xid"],
             "created_at": p["created_at"], "text": p["text"], "post_type": p["post_type"],
             "subject": subj, "contrast": _contrast_of(p), "summary": p.get("summary"),
+            "interpretation": _interpretation_of(p),
             "attrib": attrib,
             "actual": {"t1": _pct(e["ret_1d"]), "t5": _pct(e["ret_5d"]), "t7": _pct(e["ret_7d"]),
                        "t10": _pct(e["ret_10d"]), "t20": _pct(e["ret_20d"])},
@@ -236,6 +258,7 @@ def build_persons():
             "hit_rate": hr or 0, "n": n, "ic": _user_ic(xid),
             "matrix": matrix, "sectors": secs, "history": history,
             "calibration": _user_calibration(xid),
+            "profile": _user_profile(xid),
         })
     return out
 
@@ -272,6 +295,48 @@ def _user_calibration(xid):
     return pts
 
 
+def _user_profile(xid):
+    """从证据账本统计画像：典型兑现窗口 / 相对还是绝对 / 擅长做多还是做空。
+    不靠印象，只靠归档证据。证据不足时给空/None，前端显示「数据积累中」。"""
+    rows = [dict(r) for r in db.get_evidence_ledger(xid)]
+
+    horizon_hit = defaultdict(lambda: [0, 0])  # horizon -> [命中数, 样本数]
+    basis_counter = Counter()
+    bull, bear = [], []
+    for r in rows:
+        h = r.get("horizon") or "观察"
+        horizon_hit[h][1] += 1
+        if r.get("hit") == 1:
+            horizon_hit[h][0] += 1
+        try:
+            interp = json.loads(r.get("interpretation_snapshot") or "null")
+            if interp and interp.get("basis"):
+                basis_counter[interp["basis"]] += 1
+        except Exception:
+            pass
+        if r.get("stance") == "看多":
+            bull.append(r)
+        elif r.get("stance") == "看空":
+            bear.append(r)
+
+    best_h, best_score = None, -1.0
+    for h, (hit, n) in horizon_hit.items():
+        if n and (hit / n) > best_score:
+            best_score, best_h = hit / n, h
+    bull_hr = sum(1 for r in bull if r.get("hit") == 1) / len(bull) if bull else None
+    bear_hr = sum(1 for r in bear if r.get("hit") == 1) / len(bear) if bear else None
+
+    return {
+        "dominant_horizon": best_h,
+        "horizon_detail": {h: {"n": n, "hit_rate": round(hit / n * 100, 1) if n else 0}
+                           for h, (hit, n) in horizon_hit.items()},
+        "relative_or_absolute": basis_counter.most_common(1)[0][0] if basis_counter else "无法判断",
+        "bull_hit_rate": round(bull_hr * 100, 1) if bull_hr is not None else None,
+        "bear_hit_rate": round(bear_hr * 100, 1) if bear_hr is not None else None,
+        "evidence_n": len(rows),
+    }
+
+
 
 def build_predictions():
     out = []
@@ -295,6 +360,33 @@ def build_predictions():
             "hist_hit_rate": round((pr["hist_hit_rate"] or 0) * 100, 1),
             "hist_sector_hit": round((pr["hist_sector_hit"] or 0) * 100, 1),
             "signal": pr["signal"], "calibration": calib,
+        })
+    return out
+
+
+def build_evidence_ledger(user_xid=None, only_untagged=False):
+    """证据账本：发言 + 人话解读 + 实际走势对比。供「证据账本」视图展示。"""
+    fid = _followed_ids()
+    out = []
+    for r in db.get_evidence_ledger(user_xid, only_untagged):
+        r = dict(r)
+        if str(r.get("user_xid")) not in fid:
+            continue
+        try:
+            interp = json.loads(r.get("interpretation_snapshot") or "null")
+        except Exception:
+            interp = None
+        out.append({
+            "pid": r["pid"], "user_name": _uname(r["user_xid"]), "user_xid": r["user_xid"],
+            "created_at": r["created_at"], "stance": r["stance"], "horizon": r["horizon"],
+            "expected_window_days": r["expected_window_days"],
+            "interpretation": interp,
+            "actual_ret": _pct(r["actual_ret"]), "idx_ret": _pct(r["idx_ret"]),
+            "excess_ret": _pct(r["excess_ret"]), "hit": r["hit"],
+            "mdd": _pct(r["mdd"]), "peak_to_close": _pct(r["peak_to_close"]),
+            "drawdown_speed": r["drawdown_speed"], "limit_down_days": r["limit_down_days"],
+            "manual_tag": r["manual_tag"] or "",
+            "archived_at": r["archived_at"],
         })
     return out
 

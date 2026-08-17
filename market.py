@@ -81,8 +81,74 @@ def _norm_row(row, code: str, name: str, kind: str) -> dict:
     }
 
 
+def _cn_index_to_yahoo(code: str) -> str:
+    """把 akshare 的指数代码(如 000300) 转成雅虎代码(000300.SS)。"""
+    if code.endswith((".SS", ".SZ", ".SH")):
+        return code
+    if code.startswith("6") or code.startswith("0"):
+        return code + ".SS"
+    if code.startswith("3"):
+        return code + ".SZ"
+    return code + ".SS"
+
+
+def fetch_index_daily_yahoo(code: str = "000300", name: str = "沪深300", days: int = 180) -> list:
+    """雅虎兜底取 A 股指数日线（当 akshare/东财不可用时）。返回同结构 list，失败返回 []。
+
+    注：雅虎对个别 A 股指数历史稀疏(可能仅返回最近一个交易日)，属已知限制；
+    能取到多少真实数据就写入多少，绝不编造。
+    """
+    try:
+        import urllib.request, json as _json, datetime as _dt
+        tk = _cn_index_to_yahoo(code)
+        end = _dt.datetime.today()
+        start = end - _dt.timedelta(days=days)
+        p1 = int(start.timestamp())
+        p2 = int(end.timestamp())
+        url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{tk}"
+               f"?interval=1d&period1={p1}&period2={p2}")
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        d = _json.load(urllib.request.urlopen(req, timeout=20))
+        res = d["chart"]["result"][0]
+        ts = res["timestamp"]
+        q = res["indicators"]["quote"][0]
+        closes = q.get("close", [])
+        highs = q.get("high", [])
+        lows = q.get("low", [])
+        out = []
+        prev = None
+        for i, t in enumerate(ts):
+            c = closes[i] if i < len(closes) else None
+            if c is None:
+                prev = c
+                continue
+            day = _dt.datetime.fromtimestamp(t, _dt.UTC).strftime("%Y-%m-%d")
+            pct = None
+            if prev is not None:
+                try:
+                    pct = round((c - prev) / prev * 100, 4)
+                except Exception:
+                    pct = None
+            rec = {
+                "date": day,
+                "code": code,
+                "name": name,
+                "close": float(c),
+                "pct": pct,
+                "kind": "index",
+                "high": (float(highs[i]) if i < len(highs) and highs[i] is not None else None),
+                "low": (float(lows[i]) if i < len(lows) and lows[i] is not None else None),
+            }
+            out.append(rec)
+            prev = c
+        return out
+    except Exception as e:
+        print(f"[market] fetch_index_daily_yahoo({name}/{code}) 失败: {e}")
+        return []
+
+
 def fetch_index_daily(code: str = "000300", name: str = "沪深300", days: int = 180) -> list:
-    """获取 A 股指数日线（akshare: index_zh_a_hist，需联网）。
+    """获取 A 股指数日线：优先 akshare(东财)，失败/无数据时回退雅虎。
 
     返回 list[dict(date,code,name,close,pct,kind="index")]，失败返回 []。
     常见指数代码：沪深300=000300，上证指数=000001，创业板指=399006。
@@ -92,18 +158,17 @@ def fetch_index_daily(code: str = "000300", name: str = "沪深300", days: int =
         start, end = _date_range(days)
         df = ak.index_zh_a_hist(symbol=code, period="daily",
                                 start_date=start, end_date=end, adjust="")
-        if df is None or len(df) == 0:
-            print(f"[market] 指数 {name}({code}) 无数据返回")
-            return []
-        out = []
-        for _, r in df.iterrows():
-            rec = _norm_row(r.to_dict(), code, name, "index")
-            if rec:
-                out.append(rec)
-        return out
+        if df is not None and len(df) > 0:
+            out = []
+            for _, r in df.iterrows():
+                rec = _norm_row(r.to_dict(), code, name, "index")
+                if rec:
+                    out.append(rec)
+            return out
+        print(f"[market] 指数 {name}({code}) akshare 无数据，尝试 Yahoo 兜底")
     except Exception as e:
-        print(f"[market] fetch_index_daily({name}/{code}) 失败: {e}")
-        return []
+        print(f"[market] akshare 取指数 {name}/{code} 失败，尝试 Yahoo: {e}")
+    return fetch_index_daily_yahoo(code, name, days)
 
 
 def fetch_stock_daily(code: str, name: str = "", days: int = 180) -> list:

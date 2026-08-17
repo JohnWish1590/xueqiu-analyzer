@@ -5,14 +5,20 @@
 """
 import json
 import os
+import re
 import socket
 import threading
+import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from functools import partial
 import api_adapt
 
 PORT = 8765
 UI_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ui")
+
+# 每次进程启动生成一个缓存戳，注入到 index.html 内的静态资源引用上，
+# 确保发版/改 JS 后浏览器强制拉取最新版本，不再长期缓存旧 app.js。
+CACHE_BUST = str(int(time.time()))
 
 
 def _normalize_cookie(raw):
@@ -75,17 +81,43 @@ def _normalize_cookie(raw):
 def make_handler(ui_dir):
     class Handler(SimpleHTTPRequestHandler):
         def __init__(self, *a, **kw):
+            self._cache_sent = False
             super().__init__(*a, directory=ui_dir, **kw)
+
+        def end_headers(self):
+            # 全响应禁用缓存：静态资源(防止浏览器长期缓存旧 app.js/style.css)
+            # 与 API(本就要求 no-store) 统一在此处理，避免重复声明。
+            if not self._cache_sent:
+                self.send_header("Cache-Control", "no-store, must-revalidate")
+                self._cache_sent = True
+            super().end_headers()
+
+        def _serve_index(self):
+            # 动态 cache-buster：把 index.html 内 app.js/style.css 的 ?v= 换成本次启动时间戳，
+            # 强制浏览器在发版后拉取最新静态资源。
+            idx_path = os.path.join(self.directory, "index.html")
+            try:
+                with open(idx_path, "rb") as f:
+                    data = f.read()
+            except Exception:
+                return super().do_GET()
+            text = data.decode("utf-8", "replace")
+            text = re.sub(r"\?v=[A-Za-z0-9_-]+", "?v=" + CACHE_BUST, text)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(text.encode("utf-8"))
 
         def _json(self, obj):
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(json.dumps(obj, ensure_ascii=False).encode("utf-8"))
 
         def do_GET(self):
             path = self.path.split("?")[0]
+            if path in ("/", "/index.html"):
+                return self._serve_index()
             if path == "/api/timeline_pending":
                 return self._json(api_adapt.build_timeline_pending())
             if path == "/api/timeline_verified":
@@ -102,6 +134,8 @@ def make_handler(ui_dir):
                 return self._json(api_adapt.build_status())
             if path == "/api/worker/status":
                 return self._json(api_adapt.build_worker_status())
+            if path == "/api/evidence_ledger":
+                return self._json(api_adapt.build_evidence_ledger())
             return super().do_GET()
 
         def do_POST(self):
@@ -135,6 +169,12 @@ def make_handler(ui_dir):
                 return self._post_clear_model(raw)
             if path == "/api/shutdown":
                 return self._post_shutdown(raw)
+            if path == "/api/backfill_interpretation":
+                return self._post_backfill_interpretation(raw)
+            if path == "/api/archive_evidence":
+                return self._post_archive_evidence(raw)
+            if path == "/api/tag_evidence":
+                return self._post_tag_evidence(raw)
             self.send_response(404)
             self.end_headers()
             self.wfile.write(b"not found")
@@ -143,7 +183,6 @@ def make_handler(ui_dir):
         def _json_err(self, code, msg):
             self.send_response(code)
             self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(json.dumps({"ok": False, "error": msg}, ensure_ascii=False).encode("utf-8"))
 
@@ -425,6 +464,43 @@ def make_handler(ui_dir):
                 os._exit(0)
 
             threading.Timer(0.4, _kill).start()
+
+        def _post_backfill_interpretation(self, raw):
+            """给存量发言批量补人话解读（后台线程，避免阻塞请求）。"""
+            try:
+                import threading
+                import fetcher
+                body = json.loads(raw.decode("utf-8")) if raw else {}
+                limit = body.get("limit")
+                t = threading.Thread(target=fetcher.backfill_interpretations,
+                                     kwargs={"limit": limit}, daemon=True)
+                t.start()
+                self._json({"ok": True, "message": "存量补解读已启动（后台进行）"})
+            except Exception as e:
+                self._json_err(500, str(e))
+
+        def _post_archive_evidence(self, raw):
+            """手动触发证据账本归档。"""
+            try:
+                import archive_evidence
+                n = archive_evidence.archive_evidence()
+                self._json({"ok": True, "archived": n})
+            except Exception as e:
+                self._json_err(500, str(e))
+
+        def _post_tag_evidence(self, raw):
+            """人工给证据账本打标签（对/错/部分对/存疑）。"""
+            try:
+                import db
+                body = json.loads(raw.decode("utf-8")) if raw else {}
+                pid = str(body.get("pid", ""))
+                tag = str(body.get("tag", ""))
+                if not pid:
+                    return self._json_err(400, "缺少 pid")
+                db.set_evidence_tag(pid, tag)
+                self._json({"ok": True, "pid": pid, "tag": tag})
+            except Exception as e:
+                self._json_err(500, str(e))
 
     return Handler
 

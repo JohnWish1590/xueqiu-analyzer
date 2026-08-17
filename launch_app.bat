@@ -1,37 +1,43 @@
 @echo off
 REM Xueqiu analyzer - one-click launcher (double-click to run)
-REM Starts server in background (no console window), waits for port 8765,
-REM then opens Microsoft Edge in fullscreen. WorkBuddy not required.
+REM Kills every lingering process on port 8765 (including zombie / half-dead ones),
+REM then starts a fresh server and opens the browser in fullscreen.
+REM Only touches port 8765; never affects other ports/services on this machine.
 
 SETLOCAL
 
 SET PYTHON=C:\Users\user\AppData\Local\Programs\Python\Python312\pythonw.exe
 SET SRV=D:\SynologyDrive\CODING\xueqiu-analyzer\server.py
 SET URL=http://localhost:8765
+SET PORT=8765
 
-:: 1) Check if server is already running
-netstat -ano 2>nul | findstr ":8765" | findstr "LISTENING" >nul
-if not errorlevel 1 goto open
+echo [1/3] Cleaning up stale processes on port %PORT% ...
+for /f "tokens=5" %%a in ('netstat -ano ^| findstr /C:":%PORT% " ^| findstr /C:"LISTENING"') do (
+    echo    Killing PID %%a
+    taskkill /PID %%a /F >nul 2>&1
+)
 
-:: 2) Start server hidden (pythonw = no console window, detached from this batch)
-echo Starting xueqiu-analyzer server...
+timeout /t 1 /nobreak >nul
+
+echo [2/3] Starting server (hidden, no console window)...
 start "" "%PYTHON%" "%SRV%"
 
-:: 3) Wait up to 30 seconds for port 8765
+echo [3/3] Waiting for server to be ready...
 SET /A tries=0
 :wait
-if %tries% GTR 30 (
-  echo Failed to start server within 30 seconds.
-  pause
-  exit /b 1
-)
 timeout /t 1 /nobreak >nul
 SET /A tries+=1
-netstat -ano 2>nul | findstr ":8765" | findstr "LISTENING" >nul
-if errorlevel 1 goto wait
+netstat -ano 2>nul | findstr /C:":%PORT% " | findstr /C:"LISTENING" >nul
+if not errorlevel 1 goto open
+if %tries% GTR 30 (
+    echo Failed to start server within 30 seconds. Check server.py for errors.
+    pause
+    exit /b 1
+)
+goto wait
 
 :open
-:: 4) Open Edge in fullscreen and exit this launcher
 echo Server ready. Opening browser...
-start msedge --start-fullscreen "%URL%"
+powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter Name='msedge.exe'|Where-Object{$_.CommandLine -like '*http://localhost:8765*'}|ForEach-Object{$_.Terminate()};Start-Sleep -Milliseconds 400"
+start "" msedge --app="%URL%" --start-maximized
 exit

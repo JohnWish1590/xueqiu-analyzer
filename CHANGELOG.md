@@ -7,6 +7,60 @@
 
 ---
 
+## [2026-08-17] 启动器改进：控制台最小化 + 浏览器应用模式
+
+### Changed
+- **`start_server.bat`**：服务改用 `start /MIN` 在**最小化控制台**中运行（日志仍可还原查看）；启动器自身用 PowerShell 自最小化，`pause` 改为自动退出，运行后桌面上只剩浏览器窗口。
+- **浏览器打开方式**：`--start-fullscreen`（F11 式无任务栏全屏）改为 `msedge --app=<URL> --start-maximized` 的**应用模式 + 最大化**——保留任务栏、无标签栏、页面占满可视区。
+- **关旧开新**：每次启动先用 PowerShell 关掉上一轮的 `localhost:8765` Edge 应用窗口（`Get-CimInstance` 按命令行匹配 `--app=http://localhost:8765` 后 `Terminate`），避免每次双击都累加一个窗口/标签。
+- **`launch_app.bat`**：同步改为应用模式 + 关旧开新（服务本就用 `pythonw` 隐藏运行）。
+
+### Pitfalls
+- 沙箱内 PowerShell `Add-Type` / `WScript.Shell` COM 被安全策略拦截，无法在此实测"自最小化"与改快捷方式属性；标准写法在真机可运行。若自最小化偶发失效，可手动把桌面快捷方式属性「运行方式」设为「最小化」兜底。
+
+---
+
+## [2026-08-17] 修复：时间线「最新停在 08-14」（前端缓存 + 行情时间基准）
+
+### Fixed
+- **前端静态资源长期缓存**：服务端此前只给 `/api/*` 加了 `Cache-Control: no-store`，`index.html / app.js / style.css` 可被浏览器长期缓存。旧版 `app.js` 带 `daysAgo >= 0` 过滤，把 8/14 之后（8/15–8/16）的发言全排除，导致时间线只显示到 8/14。修复：
+  - `server.py` 静态资源统一加 `Cache-Control: no-store, must-revalidate`；
+  - `index.html` 内 `app.js`/`style.css` 的 `?v=` 改成**进程启动时间戳**动态戳，发版后强制浏览器拉最新；
+  - `index.html` 加 `no-store` meta 兜底。
+- **行情时间基准卡死（根因）**：`market_daily` 行情表停在 2026-08-14（缺 8/15 周五、8/17 今天），`api_adapt._as_of()` 用 `get_trading_dates()[-1]` 当「今天」→ 全站参考日期、T+7 验证窗口、相对时间（age 天数）全错乱，8/15–8/16 被算成「未来 / 负天数」。修复：
+  - `market.py` 的 `fetch_index_daily` 改为 **akshare 优先、雅虎兜底**（沙箱东财被墙、雅虎可通），已用雅虎实拉真实日线补 `market_daily`，交易日历延伸到 8/17；
+  - `api_adapt._as_of()` 加兜底：行情表最后交易日若早于真实今天，直接用 `date.today()`，杜绝行情源断更时再卡死；
+  - `ui/app.js` 的 `refDate` 兜底：后端参考日期若早于真实今天，相对时间改以真实今天计算，消除 `age -1 天` 怪显示。
+
+### Pitfalls
+- 8/15（周五）雅虎沪深300、上证两端都缺数据（指数在雅虎上 8/15 是空档，已知稀疏限制）。真机 akshare（东财）下次抓取会自动补全；时间基准已用 `_as_of` 兜底兜住，不影响展示与验证窗口。
+- 沙箱 `taskkill` 无权限杀 8765 旧实例，需 PowerShell `Stop-Process -Force` 才能干净重启；批处理 `launch_app.bat` 已能正常净端口，日常双击即可。
+- 改动文件：`server.py`、`index.html`、`market.py`、`api_adapt.py`、`ui/app.js`，全部 `py_compile` / `node --check` 通过。
+
+---
+
+## [2026-08-17] 工作流重构：实时解读 + 证据账本 + 画像
+
+从「事后判定大V对错」转向「实时解读 + 证据归档 + 画像沉淀」的工作流。
+
+### Added
+- **人话解读层 `analyst.interpret_post()`**：把每条发言翻译成「这句话什么意思 / 指什么板块 / 点的个股 / 相对还是绝对 / 时间尺度+置信度 / 客观风险提示」。**只做理解、不给操作建议**（跟/反/观望留给证据账本+画像）。LLM 生成 + `heuristic_interpret` 离线降级。
+- **证据账本 `evidence_ledger` 表 + `archive_evidence.py`**：发言 + 解读 + 实际走势对比的归档。按解读出的时间尺度映射预期窗口（短线→T+3、中线→T+7、长线→T+20、观察→T+7），用超额方向命中（个股 − 沪深300，剥离 Beta）判定；`manual_tag` 留空待人工打标签（对/错/部分对/存疑）。
+- **画像 `_user_profile`**：从证据账本自动统计「典型兑现窗口 / 基准倾向（相对大盘还是绝对收益）/ 看多看空命中率」，不靠印象。证据不足显示「数据积累中」。
+- **回撤修复**：`events` 表新增 `mdd`（峰值到谷值真回撤）、`peak_to_close`（峰值到终点回落）、`drawdown_speed`（峰→谷交易日数，正=冲高回落）、`limit_down_days`（跌停近似天数）。
+- **前端**：时间线卡片新增「AI 解读」子卡；新增「证据账本」视图（归档 / 补解读 / 人工打标签按钮）；人物分析页新增「画像」卡片。
+- **路由**：`GET /api/evidence_ledger`、`POST /api/backfill_interpretation`（存量补解读）、`POST /api/archive_evidence`、`POST /api/tag_evidence`。
+
+### Fixed
+- **伪回撤**：旧 `trough_ret` 只算「区间最低相对起点」，会把「冲高回落」误判成「没跌」。新 `mdd`（峰值到谷值）才反映真实回撤。实测案例：某看空发言 `trough_ret=-3.4%`（看似没兑现），实际 `mdd=10.4%`（从峰值回撤 10%）。
+- **启动器假活**：`launch_app.bat` / `start_server.bat` 增加「先清空 8765 端口所有进程（含假活/僵尸）→ 启动 → 等就绪 → 自动开浏览器」，杜绝多实例抢端口导致的 `ERR_EMPTY_RESPONSE`。
+
+### Pitfalls
+- 归档 upsert 用 `COALESCE(excluded.manual_tag, evidence_ledger.manual_tag)`，避免重跑归档时把人工标签覆盖回空。
+- 存量补解读只针对「看多/看空」发言（中性/闲聊无解读价值），按 `created_at` 升序补最老的先补。
+
+---
+
 ## [2026-08-14] 价格源全面切雅虎 + 模型/Key 自管理 + 服务可启停
 
 ### Added

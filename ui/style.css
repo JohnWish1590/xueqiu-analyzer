@@ -92,6 +92,14 @@ h2.vtitle{margin:0 0 4px;font-size:20px} .vsub{color:var(--ink2);margin:0 0 18px
 .pcard .text{font-size:13.5px;margin:6px 0 10px;line-height:1.6;background:#fafbfc;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
 .subject-block{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0 12px;padding:9px 11px;background:var(--brand-soft);border-radius:9px}
 .subject-block .lab{font-size:12px;font-weight:700;color:var(--brand)}
+
+/* ---------- AI 解读子卡 / 画像行 ---------- */
+.interpret-block{background:#f8fafc;border:1px solid var(--line);border-left:3px solid var(--brand);border-radius:9px;padding:10px 12px;margin:0 0 10px}
+.i-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+.i-lab{font-size:12px;font-weight:700;color:var(--brand)}
+.i-para{font-size:13.5px;line-height:1.6;margin:4px 0 8px;color:var(--ink)}
+.i-row{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;font-size:12.5px;margin:5px 0}
+.i-k{font-weight:700;color:var(--ink2);flex:none;min-width:72px}
 .attrib{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
 .attr{background:#fafbfc;border:1px solid var(--line);border-radius:9px;padding:8px 10px;text-align:center}
 .attr .k{font-size:11px;color:var(--ink2)} .attr .v{font-size:15px;font-weight:700;margin-top:2px}

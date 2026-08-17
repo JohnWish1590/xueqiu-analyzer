@@ -12,9 +12,11 @@ data/xueqiu_analyzer.db
 data/xueqiu_analyzer.db-wal
 data/xueqiu_analyzer.db-shm
 data/settings.json
+data/settings.json.user_backup
 data/fetch_log.json
 data/fetcher_state.json
 data/fetcher_state_*
+data/backup_*.db*
 data/server.log
 *.enc
 secret.key
